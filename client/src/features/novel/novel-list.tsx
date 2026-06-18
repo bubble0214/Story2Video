@@ -1,12 +1,16 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { novelsApi } from '@/services/novels';
+import { tasksApi } from '@/services/tasks';
 import { NovelCard } from './novel-card';
 import { Button } from '@/components/ui/button';
-import { useWorkflow } from '@/hooks/use-workflow';
-import { useAuth } from '@/hooks/use-auth';
-import { useRouter } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+import { ModelSelector } from '@/components/model-selector';
+import { toast } from '@/hooks/use-toast';
+import type { SearchResultItem } from '@/types/novel';
 
 interface NovelListProps {
   keywords: string;
@@ -15,8 +19,8 @@ interface NovelListProps {
 
 export function NovelList({ keywords, selectedModel }: NovelListProps) {
   const router = useRouter();
-  const { setSelectedNovel, store, startWorkflow } = useWorkflow();
-  const { isAuthenticated } = useAuth();
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [genModel, setGenModel] = useState(selectedModel || '');
 
   const keywordList = keywords
     .split(',')
@@ -29,14 +33,32 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
     enabled: keywordList.length > 0,
   });
 
+  const novels: SearchResultItem[] = data?.data ?? [];
+
+  const generateMutation = useMutation({
+    mutationFn: () =>
+      tasksApi.create({
+        workflow_type: 'generate_novel',
+        input_params: {
+          reference_ids: novels.map((n) => n.id),
+          custom_prompt: customPrompt.trim(),
+          ...(genModel ? { model: genModel } : {}),
+        },
+      }),
+    onSuccess: ({ data }) => {
+      router.push(`/task/${data.id}`);
+    },
+    onError: (err) => {
+      const e = err as { response?: { data?: { detail?: string } }; message?: string };
+      toast({ title: 'Failed to start generation', description: e.response?.data?.detail || e.message, variant: 'destructive' });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-24 rounded-lg border bg-muted animate-pulse"
-          />
+          <div key={i} className="h-32 rounded-lg border bg-muted animate-pulse" />
         ))}
       </div>
     );
@@ -44,48 +66,73 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
 
   if (isError) {
     const axiosError = error as { response?: { data?: { detail?: string } }; message?: string };
-    const errorMsg = axiosError.response?.data?.detail || axiosError.message || 'An error occurred';
     return (
       <div className="text-center py-8">
         <p className="text-destructive mb-2">Failed to load novels</p>
-        <p className="text-sm text-muted-foreground mb-4">{errorMsg}</p>
-        <Button variant="outline" onClick={() => refetch()}>
-          Retry
-        </Button>
+        <p className="text-sm text-muted-foreground mb-4">{axiosError.response?.data?.detail || axiosError.message || 'An error occurred'}</p>
+        <Button variant="outline" onClick={() => refetch()}>Retry</Button>
       </div>
     );
   }
 
-  if (!data?.data || data.data.length === 0) {
+  if (novels.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">
-          No novels found for these keywords. Try different keywords.
-        </p>
+        <p className="text-muted-foreground">No novels found for these keywords. Try different keywords.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3">
-        {data.data.map((novel) => (
-          <NovelCard
-            key={novel.id}
-            novel={novel}
-            isSelected={store.selectedNovelId === novel.id}
-            onSelect={(id) => setSelectedNovel(id)}
-          />
-        ))}
+    <div className="space-y-6">
+      {/* Reference novels */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Reference Novels ({novels.length})
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          These novels will be used as reference material for generation.
+        </p>
+        <div className="grid gap-3">
+          {novels.map((novel) => (
+            <NovelCard key={novel.id} novel={novel} />
+          ))}
+        </div>
       </div>
-      <Button
-        className="w-full"
-        size="lg"
-        disabled={!store.selectedNovelId}
-        onClick={() => startWorkflow(selectedModel)}
-      >
-        Start Generation
-      </Button>
+
+      {/* Original Novel Generation */}
+      <Card className="border-primary/30">
+        <CardContent className="pt-6 space-y-4">
+          <div>
+            <h3 className="font-semibold text-base">Generate Original Novel</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Write your creative instructions for the AI. The reference novels above
+              will be used as inspiration to create a completely original novel.
+            </p>
+          </div>
+
+          <textarea
+            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
+            placeholder="Describe the novel you want to create — genre, characters, plot direction, writing style, or any specific elements to include..."
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            rows={4}
+          />
+
+          <div className="flex items-center gap-3">
+            <div className="w-48">
+              <ModelSelector value={genModel} onChange={setGenModel} />
+            </div>
+            <Button
+              onClick={() => generateMutation.mutate()}
+              disabled={!customPrompt.trim() || generateMutation.isPending}
+              size="lg"
+            >
+              {generateMutation.isPending ? 'Generating...' : 'Generate Original Novel'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

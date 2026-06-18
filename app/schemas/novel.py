@@ -31,4 +31,7 @@ class NovelResp(BaseModel):
 class SearchResultItem(BaseModel):
     id: UUID
     title: str
+    author: str
+    tags: str
+    summary: str
     score: float

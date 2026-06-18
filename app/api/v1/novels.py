@@ -156,6 +156,9 @@ async def search_novels(
         SearchResultItem(
             id=UUID(e.id),
             title=e.title,
+            author=e.author,
+            tags=e.tags,
+            summary=e.summary,
             score=e.score or 0.0,
         )
         for e in entities

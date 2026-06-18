@@ -5,6 +5,9 @@ export interface SearchNovelReq {
 export interface SearchResultItem {
   id: string;
   title: string;
+  author: string;
+  tags: string;
+  summary: string;
   score: number;
 }
 

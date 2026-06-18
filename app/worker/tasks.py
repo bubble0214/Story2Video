@@ -154,6 +154,25 @@ async def _step_search_references(
 ) -> dict:
     """Search reference novels via vector similarity on tags/keywords."""
     _ = context  # unused but required by workflow engine signature
+
+    # If specific reference IDs are provided, fetch those novels directly
+    reference_ids = input_params.get("reference_ids")
+    if reference_ids and isinstance(reference_ids, list) and len(reference_ids) > 0:
+        async with async_session_factory() as session:
+            repo = NovelRepository(session)
+            references = []
+            for rid in reference_ids:
+                novel = await repo.get_by_id(UUID(rid))
+                if novel:
+                    references.append({
+                        "id": str(novel.id),
+                        "title": novel.title,
+                        "author": novel.author,
+                        "tags": novel.tags,
+                        "summary": novel.summary,
+                    })
+        return {"references": references}
+
     tags = input_params.get("tags", "")
     keywords = [t.strip() for t in tags.split(",") if t.strip()]
     if not keywords:
@@ -210,21 +229,37 @@ async def _step_generate_novel(
     if user_id is None:
         raise ValueError("User ID required to resolve LLM API key")
 
-    builder = NovelPromptBuilder()
-    messages = builder.build(
-        title=input_params.get("title", "Untitled"),
-        tags=input_params.get("tags", ""),
-        outline=input_params.get("outline", ""),
-        style=input_params.get("style", ""),
-        word_count=input_params.get("word_count", 2000),
-    )
-
+    custom_prompt = input_params.get("custom_prompt")
     refs = context.get("references", [])
-    if refs:
-        ref_text = "\n\nReference novels:\n" + "\n".join(
-            f"- {r['title']}: {r['summary'][:300]}" for r in refs
+
+    if custom_prompt:
+        # User-provided prompt mode: use custom instructions + references
+        parts = [f"# Instructions\n{custom_prompt}"]
+        if refs:
+            ref_text = "\n".join(
+                f"- {r['title']} (by {r.get('author', 'unknown')}): {r['summary'][:500]}"
+                for r in refs
+            )
+            parts.append(f"# Reference Novels\n{ref_text}")
+        parts.append("\nPlease write the complete novel in markdown format based on the instructions above. The novel should be original and creative, drawing inspiration from the reference novels.")  # noqa: E501
+        messages = [
+            {"role": "system", "content": "You are a professional novelist. Write an original, compelling story based on the user's instructions and reference materials."},
+            {"role": "user", "content": "\n\n".join(parts)},
+        ]
+    else:
+        builder = NovelPromptBuilder()
+        messages = builder.build(
+            title=input_params.get("title", "Untitled"),
+            tags=input_params.get("tags", ""),
+            outline=input_params.get("outline", ""),
+            style=input_params.get("style", ""),
+            word_count=input_params.get("word_count", 2000),
         )
-        messages[1]["content"] += ref_text
+        if refs:
+            ref_text = "\n\nReference novels:\n" + "\n".join(
+                f"- {r['title']}: {r['summary'][:300]}" for r in refs
+            )
+            messages[1]["content"] += ref_text
 
     llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
     if llm_provider == "custom":

@@ -1,0 +1,130 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { canvasesApi } from '@/services/canvases';
+import { useCanvasStore } from '@/stores/canvas-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { CanvasToolbar } from './canvas-toolbar';
+import { CanvasArea } from './canvas-area';
+import { NodePanel } from './node-panel';
+import { CanvasListSheet } from './canvas-list-sheet';
+import { toast } from '@/hooks/use-toast';
+
+export function CanvasPage() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const {
+    canvasId,
+    setCanvasId,
+    setDirty,
+    isDirty,
+    isSaving,
+    setSaving,
+    getCanvasData,
+    canvasTitle,
+    nodes,
+  } = useCanvasStore();
+
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSave = useRef(false);
+
+  // Create initial canvas on first mount
+  const createMutation = useMutation({
+    mutationFn: () => canvasesApi.create({ title: 'Untitled Canvas' }),
+    onSuccess: ({ data }) => {
+      setCanvasId(data.id);
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ReturnType<typeof getCanvasData> }) =>
+      canvasesApi.update(id, { data }),
+    onSuccess: () => {
+      setDirty(false);
+      setSaving(false);
+      if (pendingSave.current) {
+        pendingSave.current = false;
+      }
+    },
+    onError: () => {
+      setSaving(false);
+      toast({ title: 'Failed to save canvas', variant: 'destructive' });
+    },
+  });
+
+  // Create a canvas for authenticated users on first mount
+  useEffect(() => {
+    if (isAuthenticated && !canvasId && !createMutation.isPending) {
+      createMutation.mutate();
+    }
+  }, [isAuthenticated, canvasId]);
+
+  const doSave = () => {
+    const id = useCanvasStore.getState().canvasId;
+    if (!id) return;
+    setSaving(true);
+    const data = getCanvasData();
+    saveMutation.mutate({ id, data });
+  };
+
+  // Auto-save debounce
+  useEffect(() => {
+    if (!isDirty || !canvasId) return;
+
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+    }
+
+    autoSaveTimer.current = setTimeout(() => {
+      doSave();
+    }, 5000);
+
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, [isDirty, nodes, canvasTitle, canvasId]);
+
+  // Flush save on unmount
+  useEffect(() => {
+    return () => {
+      if (useCanvasStore.getState().isDirty && useCanvasStore.getState().canvasId) {
+        const id = useCanvasStore.getState().canvasId!;
+        const data = useCanvasStore.getState().getCanvasData();
+        navigator.sendBeacon(
+          `/api/v1/canvases/${id}`,
+          JSON.stringify({ data }),
+        );
+      }
+    };
+  }, []);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">
+          Please login to use the canvas
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center">
+        <CanvasToolbar />
+        <div className="px-2">
+          <CanvasListSheet />
+        </div>
+      </div>
+
+      {/* Canvas + Node Panel */}
+      <div className="flex flex-1 overflow-hidden">
+        <CanvasArea />
+        <NodePanel />
+      </div>
+    </div>
+  );
+}

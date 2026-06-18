@@ -66,7 +66,7 @@ export function useWorkflow() {
     if (currentIndex < nextStepOrder.length - 1) {
       const next = nextStepOrder[currentIndex + 1];
       store.addCompletedStep(currentWorkflowType as WorkflowType);
-      createTaskMutation.mutate(next);
+      createTaskMutation.mutate({ workflowType: next });
     } else {
       store.addCompletedStep(currentWorkflowType as WorkflowType);
       toast({ title: 'Workflow complete! All steps finished.' });

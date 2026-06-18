@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '@/services/tasks';
 import { WORKFLOW_MODE_TO_TYPE } from '@/types/workflow';
 import { Button } from '@/components/ui/button';
-import { PenLine, FileText, Music, Image, Video, ArrowLeft, type LucideIcon } from 'lucide-react';
+import { PenLine, FileText, Music, Image, Video, ArrowLeft, Trash2, type LucideIcon } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { TaskResp } from '@/types/task';
 
 const MODE_LABELS: Record<string, string> = {
@@ -38,6 +39,8 @@ export default function AssetCategoryPage() {
   const label = MODE_LABELS[mode] ?? mode;
   const Icon = MODE_ICONS[mode] ?? PenLine;
   const workflowType = WORKFLOW_MODE_TO_TYPE[mode as keyof typeof WORKFLOW_MODE_TO_TYPE];
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['asset-category', mode],
@@ -50,6 +53,18 @@ export default function AssetCategoryPage() {
   });
 
   const successItems = data?.items.filter((t: TaskResp) => t.status === 'SUCCESS' && t.workflow_type === workflowType) ?? [];
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: string) => tasksApi.delete(taskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asset-category', mode] });
+      toast({ title: 'Project deleted' });
+    },
+    onError: (error) => {
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      toast({ title: 'Failed to delete', description: err.response?.data?.detail || err.message, variant: 'destructive' });
+    },
+  });
 
   return (
     <div className="container max-w-3xl mx-auto py-8 px-4 space-y-6">
@@ -112,17 +127,34 @@ export default function AssetCategoryPage() {
           {successItems.map((task: TaskResp) => {
             const title = (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
             return (
-              <Link
+              <div
                 key={task.id}
-                href={`/result/${task.id}`}
-                className="flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                className="group flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
               >
-                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate font-medium">{title}</span>
-                <span className="text-sm text-muted-foreground shrink-0">
-                  {formatDate(task.created_at)}
-                </span>
-              </Link>
+                <Link
+                  href={`/result/${task.id}`}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                >
+                  <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate font-medium">{title}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">
+                    {formatDate(task.created_at)}
+                  </span>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this project?')) {
+                      deleteMutation.mutate(task.id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             );
           })}
         </div>

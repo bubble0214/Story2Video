@@ -98,7 +98,7 @@ export default function SettingsPage() {
       let msg = err.message || 'Unknown error';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
-        msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ');
+        msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }
@@ -134,7 +134,7 @@ export default function SettingsPage() {
       let msg = err.message || 'Unknown error';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
-        msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ');
+        msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }
@@ -158,7 +158,7 @@ export default function SettingsPage() {
       let msg = err.message || 'Unknown error';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
-        msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ');
+        msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }
@@ -186,7 +186,7 @@ export default function SettingsPage() {
       let msg = err.message || 'Unknown error';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
-        msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ');
+        msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ModelSelector } from '@/components/model-selector';
+import { PromptOptimizer } from '@/components/prompt-optimizer';
 import { toast } from '@/hooks/use-toast';
 import type { SearchResultItem } from '@/types/novel';
 
@@ -121,6 +122,8 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
             onChange={(e) => setCustomPrompt(e.target.value)}
             rows={4}
           />
+
+          <PromptOptimizer value={customPrompt} onAccept={(v) => setCustomPrompt(v)} />
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-48">

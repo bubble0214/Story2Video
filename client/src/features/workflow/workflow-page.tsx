@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { ModelSelector } from '@/components/model-selector';
+import { PromptOptimizer } from '@/components/prompt-optimizer';
 import type { WorkflowType } from '@/types/task';
 
 interface WorkflowPageProps {
@@ -132,6 +133,7 @@ export function WorkflowPage({
               <ModelSelector value={selectedModel} onChange={setSelectedModel} />
             </div>
           </div>
+          <PromptOptimizer value={prompt} onAccept={(v) => setPrompt(v)} />
           {keywords && (
             <p className="text-xs text-muted-foreground">
               Using keywords: <span className="font-medium">{keywords}</span>

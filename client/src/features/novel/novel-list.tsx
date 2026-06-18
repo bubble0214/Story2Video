@@ -8,6 +8,7 @@ import { tasksApi } from '@/services/tasks';
 import { NovelCard } from './novel-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { ModelSelector } from '@/components/model-selector';
 import { toast } from '@/hooks/use-toast';
 import type { SearchResultItem } from '@/types/novel';
@@ -21,6 +22,7 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
   const router = useRouter();
   const [customPrompt, setCustomPrompt] = useState('');
   const [genModel, setGenModel] = useState(selectedModel || '');
+  const [chapterCount, setChapterCount] = useState(5);
 
   const keywordList = keywords
     .split(',')
@@ -35,13 +37,14 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
 
   const novels: SearchResultItem[] = data?.data ?? [];
 
-  const generateMutation = useMutation({
-    mutationFn: () =>
+  const baseMutation = useMutation({
+    mutationFn: (longNovel: boolean) =>
       tasksApi.create({
-        workflow_type: 'generate_novel',
+        workflow_type: longNovel ? 'generate_long_novel' : 'generate_novel',
         input_params: {
           reference_ids: novels.map((n) => n.id),
           custom_prompt: customPrompt.trim(),
+          ...(longNovel ? { num_chapters: chapterCount } : {}),
           ...(genModel ? { model: genModel } : {}),
         },
       }),
@@ -119,18 +122,44 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
             rows={4}
           />
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="w-48">
               <ModelSelector value={genModel} onChange={setGenModel} />
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground whitespace-nowrap">Chapters:</label>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                className="w-20 h-9 text-sm"
+                value={chapterCount}
+                onChange={(e) => setChapterCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
             <Button
-              onClick={() => generateMutation.mutate()}
-              disabled={!customPrompt.trim() || generateMutation.isPending}
+              onClick={() => baseMutation.mutate(false)}
+              disabled={!customPrompt.trim() || baseMutation.isPending}
               size="lg"
             >
-              {generateMutation.isPending ? 'Generating...' : 'Generate Original Novel'}
+              {baseMutation.isPending ? 'Generating...' : 'Generate Short Novel'}
+            </Button>
+            <Button
+              onClick={() => baseMutation.mutate(true)}
+              disabled={!customPrompt.trim() || baseMutation.isPending}
+              size="lg"
+              variant="secondary"
+            >
+              {baseMutation.isPending ? 'Generating...' : `Generate Long Novel (${chapterCount} chapters)`}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            <strong>Short Novel:</strong> single LLM call, ~2000 words. &nbsp;
+            <strong>Long Novel:</strong> generates chapter by chapter, each chapter is a separate LLM call.
+          </p>
         </CardContent>
       </Card>
     </div>

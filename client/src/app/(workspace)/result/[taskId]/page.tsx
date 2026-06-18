@@ -123,6 +123,7 @@ export default function ResultPage() {
             <NovelTab
               content={(result.novel_content as string) || 'No novel content generated.'}
               workflowType={task.workflow_type}
+              chapters={result.chapters as { title: string; content: string }[] | undefined}
             />
           </TabsContent>
           <TabsContent value="script" className="mt-4">

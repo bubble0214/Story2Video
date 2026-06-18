@@ -1,5 +1,6 @@
 export type WorkflowType =
   | 'generate_novel'
+  | 'generate_long_novel'
   | 'generate_script'
   | 'generate_lyrics'
   | 'generate_song'

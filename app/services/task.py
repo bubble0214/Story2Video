@@ -12,6 +12,7 @@ class TaskService:
 
     WORKFLOW_MAP: dict[str, str] = {
         "generate_novel": "workflow_generate_novel",
+        "generate_long_novel": "workflow_generate_long_novel",
         "generate_script": "workflow_generate_script",
         "generate_lyrics": "workflow_generate_lyrics",
         "generate_song": "workflow_generate_song",
@@ -51,6 +52,7 @@ class TaskService:
     def _queue_for_workflow(self, workflow_type: str) -> str:
         queue_map = {
             "generate_novel": "novel_generation",
+            "generate_long_novel": "novel_generation",
             "generate_script": "script_generation",
             "generate_lyrics": "lyrics_generation",
             "generate_song": "music_generation",

@@ -1,106 +1,20 @@
 from __future__ import annotations
 
+import asyncio
+import sys
 import logging
 from typing import Any
 from uuid import UUID
 
 from app.core.celery import celery_app
-from app.providers.embedding import get_embedding_provider
 from app.providers.llm import LLMFactory
 from app.providers.prompt import LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
-from app.repositories.api_key import ApiKeyRepository
 from app.repositories.novel import NovelRepository
 from app.repositories.task import TaskRepository
-from app.repositories.user_preference import UserPreferenceRepository
 from app.utils.database import async_session_factory
-from app.utils.encryption import decrypt_to_plaintext
+from app.utils.llm_key import resolve_user_llm_key
 
 logger = logging.getLogger(__name__)
-
-# ── API key resolution ──────────────────────────────────────────────
-
-
-async def _get_user_api_key_from_db(user_id: UUID, provider: str) -> str | None:
-    """Retrieve the decrypted API key for a user+provider combo.
-
-    Returns ``None`` if no key is stored — no env fallback.
-    """
-    async with async_session_factory() as session:
-        repo = ApiKeyRepository(session)
-        key_obj = await repo.get_by_user_and_provider(user_id, provider)
-        if key_obj is not None and key_obj.encrypted_key:
-            return decrypt_to_plaintext(key_obj.encrypted_key)
-    return None
-
-
-async def _get_user_llm_key(
-    user_id: UUID, input_params: dict | None = None,
-) -> tuple[str, str, str | None, str | None]:
-    """Return (api_key, provider, base_url, model_name) for the user's LLM.
-
-    Only uses keys the user has explicitly saved in Settings.
-    Raises ``ValueError`` if no matching key is found.
-    """
-    # 1. Check input_params for an explicit model selection
-    if input_params:
-        model_val = input_params.get("model")
-        if model_val and isinstance(model_val, str) and "::" in model_val:
-            provider_part, model_part = model_val.split("::", 1)
-            async with async_session_factory() as session:
-                repo = ApiKeyRepository(session)
-                key_obj = await repo.get_by_user_and_provider(
-                    user_id, provider_part, model_name=model_part,
-                )
-                if key_obj is None:
-                    key_obj = await repo.get_by_user_and_provider(
-                        user_id, provider_part,
-                    )
-                if key_obj is not None and key_obj.encrypted_key:
-                    return (
-                        decrypt_to_plaintext(key_obj.encrypted_key),
-                        provider_part,
-                        key_obj.base_url,
-                        model_part,
-                    )
-                raise ValueError(
-                    f"No API key found for provider '{provider_part}'. "
-                    f"Please go to Settings and add your {provider_part} API key."
-                )
-        elif model_val and isinstance(model_val, str) and model_val:
-            async with async_session_factory() as session:
-                repo = ApiKeyRepository(session)
-                key_obj = await repo.get_by_user_and_provider(user_id, model_val)
-                if key_obj is not None and key_obj.encrypted_key:
-                    return (
-                        decrypt_to_plaintext(key_obj.encrypted_key),
-                        model_val,
-                        key_obj.base_url,
-                        key_obj.model_name,
-                    )
-                raise ValueError(
-                    f"No API key found for provider '{model_val}'. "
-                    f"Please go to Settings and add your {model_val} API key."
-                )
-
-    # 2. No explicit model — try all user-saved keys
-    async with async_session_factory() as session:
-        repo = ApiKeyRepository(session)
-        all_keys = await repo.list_by_user(user_id)
-        # Prefer LLM providers (skip music/avatar-specific keys)
-        llm_providers = {"openai", "claude", "gemini", "deepseek", "qwen", "glm", "custom"}
-        for key_obj in all_keys:
-            if key_obj.provider in llm_providers and key_obj.encrypted_key:
-                return (
-                    decrypt_to_plaintext(key_obj.encrypted_key),
-                    key_obj.provider,
-                    key_obj.base_url,
-                    key_obj.model_name,
-                )
-
-    raise ValueError(
-        "No LLM API key configured. Please go to Settings and add at least one "
-        "LLM provider API key (OpenAI, Claude, DeepSeek, etc.)."
-    )
 
 # ── Async helpers ─────────────────────────────────────────────────────
 
@@ -155,6 +69,12 @@ async def _step_search_references(
     """Search reference novels via vector similarity on tags/keywords."""
     _ = context  # unused but required by workflow engine signature
 
+    # If reference_data is provided (from LLM-based search on the frontend),
+    # pass it through directly without DB lookup.
+    reference_data = input_params.get("reference_data")
+    if reference_data and isinstance(reference_data, list) and len(reference_data) > 0:
+        return {"references": reference_data}
+
     # If specific reference IDs are provided, fetch those novels directly
     reference_ids = input_params.get("reference_ids")
     if reference_ids and isinstance(reference_ids, list) and len(reference_ids) > 0:
@@ -173,52 +93,46 @@ async def _step_search_references(
                     })
         return {"references": references}
 
+    # No reference data or IDs — use LLM to recommend novels based on tags/keywords
     tags = input_params.get("tags", "")
     keywords = [t.strip() for t in tags.split(",") if t.strip()]
     if not keywords:
         return {"references": []}
 
     if user_id is None:
-        raise ValueError("User ID required to resolve embedding API key")
-
-    # Look up user's embedding key — only from user-saved keys
-    async with async_session_factory() as session:
-        pref_repo = UserPreferenceRepository(session)
-        user_pref = await pref_repo.get_by_user(user_id)
-        embedding_provider = user_pref.embedding_provider if (user_pref and user_pref.embedding_provider) else None
-
-        if not embedding_provider:
-            raise ValueError(
-                "No embedding provider configured. Please go to Settings, "
-                "select an Embedding Provider, and save your API key."
-            )
-
-        repo = ApiKeyRepository(session)
-        key_obj = await repo.get_by_user_and_provider(user_id, embedding_provider)
-        if key_obj is None or not key_obj.encrypted_key:
-            raise ValueError(
-                f"No API key found for embedding provider '{embedding_provider}'. "
-                f"Please go to Settings and add your {embedding_provider} API key."
-            )
-
-        api_key = decrypt_to_plaintext(key_obj.encrypted_key)
-        base_url = key_obj.base_url
-        model_name = key_obj.model_name
+        raise ValueError("User ID required to resolve LLM API key")
 
     try:
-        provider = get_embedding_provider(embedding_provider, api_key, base_url, model_name)
-        embedding = await provider.generate(" ".join(keywords))
-    except Exception:
-        logger.warning("Embedding failed, skipping reference search", exc_info=True)
+        llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    except ValueError:
+        logger.warning("No LLM key found, skipping reference search")
         return {"references": []}
 
-    async with async_session_factory() as session:
-        repo = NovelRepository(session)
-        results = await repo.search_by_embedding(embedding, limit=3)
-        references = [
-            {"id": str(n.id), "title": n.title, "summary": n.summary, "score": s}
-            for n, s in results
-        ]
+    if llm_provider == "custom":
+        llm_provider = "openai"
+
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    # Use NovelService to get LLM recommendations
+    from app.services.novel import NovelService
+    svc = NovelService(None, provider)
+    try:
+        entities = await svc.search(keywords)
+    except Exception:
+        logger.warning("LLM recommendation failed, skipping reference search", exc_info=True)
+        return {"references": []}
+
+    references = [
+        {
+            "id": e.id,
+            "title": e.title,
+            "author": e.author,
+            "tags": e.tags,
+            "summary": e.summary,
+            "score": e.score,
+        }
+        for e in entities
+    ]
     return {"references": references}
 
 
@@ -261,12 +175,21 @@ async def _step_generate_novel(
             )
             messages[1]["content"] += ref_text
 
-    llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
-    return {"novel_content": content}
+    # Extract a title from the first heading or fall back to input
+    title = None
+    for line in content.split("\n"):
+        line = line.strip()
+        if line.startswith("# ") or line.startswith("## "):
+            title = line.lstrip("# ").strip()
+            break
+    if not title:
+        title = input_params.get("custom_prompt", "Untitled").split("\n")[0][:60]
+    return {"novel_content": content, "title": title}
 
 
 async def _step_generate_outline(
@@ -304,7 +227,7 @@ async def _step_generate_outline(
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 
-    llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
@@ -340,7 +263,7 @@ async def _step_generate_chapters(
 
     custom_prompt = input_params.get("custom_prompt", "")
     refs = context.get("references", [])
-    llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
@@ -354,7 +277,6 @@ async def _step_generate_chapters(
 
     generated_chapters = []
     total = len(chapters)
-    task_uuid = None
     # Try to get task_id from context for checkpoint updates
     task_id_str = input_params.get("_task_id")
 
@@ -416,9 +338,12 @@ async def _step_generate_chapters(
     for i, ch in enumerate(generated_chapters):
         full_novel += f"# {ch['title']}\n\n{ch['content']}\n\n---\n\n"
 
+    title = generated_chapters[0]["title"] if generated_chapters else input_params.get("custom_prompt", "Untitled").split("\n")[0][:60]
+
     return {
         "chapters": generated_chapters,
         "novel_content": full_novel,
+        "title": title,
     }
 
 
@@ -440,7 +365,7 @@ async def _step_generate_script(
         style=input_params.get("script_style", ""),
     )
 
-    llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
@@ -471,7 +396,7 @@ async def _step_generate_lyrics(
         )
         messages[1]["content"] += ref_text
 
-    llm_key, llm_provider, base_url, model = await _get_user_llm_key(user_id, input_params)
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
@@ -645,6 +570,8 @@ async def _run_workflow_async(
 
 def _run_workflow(task_id: str, user_id: str, steps: list[str], input_params: dict) -> dict:
     """Sync wrapper around the async workflow engine for Celery workers."""
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     return asyncio.run(_run_workflow_async(task_id, user_id, steps, input_params))
 
 

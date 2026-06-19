@@ -32,7 +32,7 @@ export function NovelCard({ novel }: NovelCardProps) {
             )}
           </div>
           <Badge variant="secondary" className="shrink-0">
-            {(novel.score * 100).toFixed(0)}% match
+            {(novel.score * 100).toFixed(0)}% confidence
           </Badge>
         </div>
       </CardContent>

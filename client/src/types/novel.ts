@@ -3,7 +3,7 @@ export interface SearchNovelReq {
 }
 
 export interface SearchResultItem {
-  id: string;
+  id?: string;  // absent for LLM-recommended novels not in DB
   title: string;
   author: string;
   tags: string;

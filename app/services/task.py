@@ -104,3 +104,7 @@ class TaskService:
         if obj is None or obj.user_id != user_id:
             raise ValueError("Task not found")
         await self._repo.delete(task_id)
+
+    async def update_task_result(self, task_id: UUID, result_update: dict) -> Task:
+        """Merge result_update into the task's existing result dict."""
+        return await self._repo.update_result(task_id, result_update)

@@ -5,11 +5,12 @@ import { useWorkflowStore } from '@/stores/workflow-store';
 import { NovelList } from '@/features/novel/novel-list';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/model-selector';
+import { CurrentTaskBanner } from '@/components/current-task-banner';
 
 export default function NovelPage() {
   const keywords = useWorkflowStore((s) => s.keywords);
   const setKeywords = useWorkflowStore((s) => s.setKeywords);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(() => !!keywords.trim());
   const [selectedModel, setSelectedModel] = useState('');
 
   const handleSearch = () => {
@@ -19,6 +20,9 @@ export default function NovelPage() {
 
   return (
     <div className="py-8 px-4 max-w-2xl mx-auto space-y-10">
+      {/* Current task banner */}
+      <CurrentTaskBanner />
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">

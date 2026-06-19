@@ -20,6 +20,15 @@ class CreateTaskReq(BaseModel):
     )
 
 
+class UpdateTaskResultReq(BaseModel):
+    """Request to update specific fields of a task's result dict."""
+
+    result: dict = Field(
+        ...,
+        description="Partial result fields to merge into the existing task result",
+    )
+
+
 class TaskResp(BaseModel):
     """Public response for a task."""
 

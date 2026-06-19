@@ -20,6 +20,9 @@ export const tasksApi = {
 
   delete: (id: string) =>
     apiClient.delete<{ message: string }>(`/v1/tasks/${id}`),
+
+  patch: (taskId: string, data: { result: Record<string, unknown> }) =>
+    apiClient.patch<TaskResp>(`/v1/tasks/${taskId}`, data),
 };
 
 export const musicApi = {

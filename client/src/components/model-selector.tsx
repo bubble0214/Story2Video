@@ -29,6 +29,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 interface ModelOption {
   value: string;
   label: string;
+  id: string;
 }
 
 interface ModelSelectorProps {
@@ -58,7 +59,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     const label = key.model_name
       ? `${providerLabel} — ${key.model_name}`
       : providerLabel;
-    return { value: val, label };
+    return { value: val, label, id: key.id };
   });
 
   // Build display label for the selected value
@@ -104,7 +105,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
       <SelectContent align="end">
         <SelectItem value="">Auto (default)</SelectItem>
         {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
+          <SelectItem key={opt.id} value={opt.value}>
             {opt.label}
           </SelectItem>
         ))}

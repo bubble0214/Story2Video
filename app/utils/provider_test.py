@@ -57,9 +57,9 @@ _PROVIDER_TESTS: dict[str, tuple[str, dict[str, str], str]] = {
         "get",
     ),
     "custom": (
-        "{base_url}/models",
+        "{base_url}/embeddings",
         {"Authorization": "Bearer {key}"},
-        "get",
+        "post_custom_embedding",
     ),
 }
 
@@ -77,6 +77,9 @@ async def check_provider_connection(
         return False, f"Unknown provider: {provider}"
 
     url_template, headers_template, method = entry
+    # Strip trailing /embeddings if user pasted the full endpoint URL
+    if base_url:
+        base_url = base_url.rstrip("/").removesuffix("/embeddings")
     url = url_template.replace("{key}", api_key)
     if "{base_url}" in url_template:
         if not base_url:
@@ -107,6 +110,25 @@ async def check_provider_connection(
                         },
                     },
                 )
+            elif method == "post_custom_embedding":
+                resp = await client.post(
+                    url,
+                    headers=headers,
+                    json={
+                        "model": model_name or "text-embedding-3-small",
+                        "input": "ping",
+                    },
+                )
+                if resp.status_code == 404:
+                    # Some providers (e.g. SiliconFlow) require array input
+                    resp = await client.post(
+                        url,
+                        headers=headers,
+                        json={
+                            "model": model_name or "text-embedding-3-small",
+                            "input": ["ping"],
+                        },
+                    )
             else:
                 resp = await client.get(url, headers=headers)
 

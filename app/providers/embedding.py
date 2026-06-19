@@ -90,7 +90,8 @@ class GenericOpenAIEmbeddingProvider(EmbeddingProvider):
 
     def __init__(self, api_key: str, base_url: str, model: str | None = None) -> None:
         self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
+        # Strip trailing /embeddings if user pasted the full endpoint URL
+        self._base_url = base_url.rstrip("/").removesuffix("/embeddings")
         self._model = model or "text-embedding-3-small"
 
     async def generate(self, text: str) -> list[float]:
@@ -109,6 +110,17 @@ class GenericOpenAIEmbeddingProvider(EmbeddingProvider):
                     },
                     json={"input": text, "model": self._model},
                 )
+                if resp.status_code == 404:
+                    # Some providers (e.g. SiliconFlow) return 404 with string input
+                    # Try array format instead
+                    resp = await client.post(
+                        url,
+                        headers={
+                            "Authorization": f"Bearer {self._api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={"input": [text], "model": self._model},
+                    )
                 if resp.status_code != 200:
                     raise ValueError(
                         f"Embedding failed: HTTP {resp.status_code} {resp.text}"

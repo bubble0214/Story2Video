@@ -29,7 +29,7 @@ class NovelResp(BaseModel):
 
 
 class SearchResultItem(BaseModel):
-    id: UUID
+    id: UUID | None = None  # None for LLM-recommended novels not in DB
     title: str
     author: str
     tags: str

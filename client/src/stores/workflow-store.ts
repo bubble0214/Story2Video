@@ -7,6 +7,7 @@ interface WorkflowStore extends WorkflowState {
   setKeywords: (keywords: string) => void;
   setWorkflowMode: (mode: WorkflowMode) => void;
   setSelectedNovel: (novelId: string) => void;
+  setCustomPrompt: (prompt: string) => void;
   addCompletedStep: (type: WorkflowType) => void;
   setCurrentTaskId: (taskId: string | null) => void;
   reset: () => void;
@@ -19,6 +20,7 @@ const initialState: WorkflowState = {
   selectedNovelId: null,
   completedSteps: [],
   currentTaskId: null,
+  customPrompt: '',
 };
 
 export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
@@ -27,6 +29,7 @@ export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
   setKeywords: (keywords) => set({ keywords }),
   setWorkflowMode: (workflowMode) => set({ workflowMode }),
   setSelectedNovel: (selectedNovelId) => set({ selectedNovelId }),
+  setCustomPrompt: (customPrompt) => set({ customPrompt }),
 
   addCompletedStep: (type) =>
     set((state) => ({

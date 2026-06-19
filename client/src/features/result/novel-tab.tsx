@@ -1,20 +1,82 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkflow } from '@/hooks/use-workflow';
+import { tasksApi } from '@/services/tasks';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { Pencil, Eye, Loader2 } from 'lucide-react';
 
 interface NovelTabProps {
   content: string;
   workflowType?: string;
   chapters?: { title: string; content: string }[];
+  taskId?: string;
+  resultTitle?: string;
 }
 
-export function NovelTab({ content, workflowType, chapters }: NovelTabProps) {
+export function NovelTab({ content, workflowType, chapters, taskId, resultTitle }: NovelTabProps) {
   const [currentChapter, setCurrentChapter] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
   const hasContent = content && content !== 'No novel content generated.';
   const hasChapters = chapters && chapters.length > 0;
   const { goToNextStep } = useWorkflow();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // For multi-chapter novels, merge all chapters into one markdown for editing
+  const fullMarkdown = useMemo(() => {
+    if (hasChapters) {
+      return chapters!
+        .map((ch) => `# ${ch.title}\n\n${ch.content}`)
+        .join('\n\n---\n\n');
+    }
+    return content;
+  }, [content, chapters, hasChapters]);
+
+  const saveMutation = useMutation({
+    mutationFn: (data: { novel_content: string; title?: string }) =>
+      tasksApi.patch(taskId!, { result: data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-category'] });
+      setIsEditing(false);
+      toast({ title: '已保存' });
+    },
+    onError: (error) => {
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      toast({
+        title: '保存失败',
+        description: err.response?.data?.detail || err.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleEdit = () => {
+    setEditedContent(fullMarkdown);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    // Extract title from first # heading
+    let title = resultTitle || '未命名';
+    for (const line of editedContent.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('# ')) {
+        title = trimmed.slice(2).trim();
+        break;
+      }
+    }
+    saveMutation.mutate({ novel_content: editedContent, title });
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
 
   if (!hasContent && !hasChapters) {
     return (
@@ -26,7 +88,54 @@ export function NovelTab({ content, workflowType, chapters }: NovelTabProps) {
 
   return (
     <div className="space-y-4">
-      {hasChapters ? (
+      {/* Title + Edit toggle */}
+      {taskId && (
+        <div className="flex items-center gap-2 pb-3 border-b">
+          <h2 className="text-xl font-bold flex-1 truncate">
+            {resultTitle || '未命名'}
+          </h2>
+          {isEditing ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saveMutation.isPending || !editedContent.trim()}
+              >
+                {saveMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</>
+                ) : '保存'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={saveMutation.isPending}
+              >
+                取消
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleEdit}
+              className="shrink-0"
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              编辑
+            </Button>
+          )}
+        </div>
+      )}
+
+      {isEditing ? (
+        <textarea
+          className="flex min-h-[500px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm font-mono leading-relaxed ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
+          value={editedContent}
+          onChange={(e) => setEditedContent(e.target.value)}
+          disabled={saveMutation.isPending}
+        />
+      ) : hasChapters ? (
         <>
           {/* Chapter navigation */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b">
@@ -80,7 +189,7 @@ export function NovelTab({ content, workflowType, chapters }: NovelTabProps) {
         </div>
       )}
 
-      {workflowType && (
+      {workflowType && !isEditing && (
         <div className="flex justify-end pt-4 border-t">
           <Button onClick={() => goToNextStep(workflowType)}>
             Next Step: Generate Script

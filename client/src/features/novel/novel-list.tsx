@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { novelsApi } from '@/services/novels';
 import { tasksApi } from '@/services/tasks';
+import { useWorkflowStore } from '@/stores/workflow-store';
 import { NovelCard } from './novel-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +22,8 @@ interface NovelListProps {
 
 export function NovelList({ keywords, selectedModel }: NovelListProps) {
   const router = useRouter();
-  const [customPrompt, setCustomPrompt] = useState('');
+  const customPrompt = useWorkflowStore((s) => s.customPrompt);
+  const setCustomPrompt = useWorkflowStore((s) => s.setCustomPrompt);
   const [genModel, setGenModel] = useState(selectedModel || '');
   const [chapterCount, setChapterCount] = useState(5);
 
@@ -43,13 +45,21 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
       tasksApi.create({
         workflow_type: longNovel ? 'generate_long_novel' : 'generate_novel',
         input_params: {
-          reference_ids: novels.map((n) => n.id),
+          reference_data: novels.map((n) => ({
+            id: n.id || '',
+            title: n.title,
+            author: n.author,
+            tags: n.tags,
+            summary: n.summary,
+            score: n.score,
+          })),
           custom_prompt: customPrompt.trim(),
           ...(longNovel ? { num_chapters: chapterCount } : {}),
           ...(genModel ? { model: genModel } : {}),
         },
       }),
     onSuccess: ({ data }) => {
+      useWorkflowStore.getState().setCurrentTaskId(data.id);
       router.push(`/task/${data.id}`);
     },
     onError: (err) => {
@@ -82,7 +92,7 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
   if (novels.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">No novels found for these keywords. Try different keywords.</p>
+        <p className="text-muted-foreground">No recommendations found for these keywords. Try different keywords.</p>
       </div>
     );
   }
@@ -99,7 +109,7 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
         </p>
         <div className="grid gap-3">
           {novels.map((novel) => (
-            <NovelCard key={novel.id} novel={novel} />
+            <NovelCard key={novel.id || `${novel.title}-${novel.author}`} novel={novel} />
           ))}
         </div>
       </div>
@@ -123,7 +133,7 @@ export function NovelList({ keywords, selectedModel }: NovelListProps) {
             rows={4}
           />
 
-          <PromptOptimizer value={customPrompt} onAccept={(v) => setCustomPrompt(v)} />
+          <PromptOptimizer value={customPrompt} onAccept={(v) => setCustomPrompt(v)} references={novels} />
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-48">

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import CurrentUserId, get_db
 from app.repositories.task import TaskRepository
 from app.schemas.common import MessageResp
-from app.schemas.task import CreateTaskReq, TaskListResp, TaskProgressResp, TaskResp
+from app.schemas.task import CreateTaskReq, TaskListResp, TaskProgressResp, TaskResp, UpdateTaskResultReq
 from app.services.task import TaskService
 
 router = APIRouter()
@@ -115,3 +115,30 @@ async def delete_task(
             detail=str(e),
         )
     return MessageResp(message="Task deleted")
+
+
+@router.patch(
+    "/{task_id}",
+    response_model=TaskResp,
+    summary="Update task result fields",
+)
+async def update_task_result(
+    task_id: UUID,
+    body: UpdateTaskResultReq,
+    user_id: CurrentUserId,
+    svc: TaskService = Depends(get_task_service),
+) -> TaskResp:
+    """Merge the provided fields into the task's result dict."""
+    task = await svc.get_task(task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found",
+        )
+    if str(task.user_id) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Task does not belong to this user",
+        )
+    updated = await svc.update_task_result(task_id, body.result)
+    return TaskResp.model_validate(updated)

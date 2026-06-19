@@ -26,4 +26,5 @@ export interface WorkflowState {
   selectedNovelId: string | null;
   completedSteps: WorkflowType[];
   currentTaskId: string | null;
+  customPrompt: string;
 }

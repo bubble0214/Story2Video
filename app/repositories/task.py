@@ -94,3 +94,14 @@ class TaskRepository:
         await self._session.delete(obj)
         await self._session.commit()
         return True
+
+    async def update_result(self, task_id: UUID, result_update: dict) -> Task:
+        """Merge result_update fields into the existing result JSON, then commit."""
+        obj = await self.get_by_id(task_id)
+        if obj is None:
+            raise ValueError("Task not found")
+        merged = {**obj.result, **result_update}
+        obj.result = merged
+        await self._session.commit()
+        await self._session.refresh(obj)
+        return obj

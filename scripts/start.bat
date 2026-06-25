@@ -10,13 +10,25 @@ echo.
 
 :: ── 1. .env ─────────────────────────────────────
 if not exist ".env" (
-  echo [1/6] 创建 .env 配置文件...
+  echo [1/6] 生成 .env 配置文件...
+
+  :: 生成随机密钥
+  for /f %%i in ('powershell -Command "[Convert]::ToBase64String((1..24|%%{Get-Random -Max 256})).Substring(0,32)"') do set JWT_KEY=%%i
+  for /f %%i in ('powershell -Command "[Convert]::ToBase64String((1..48|%%{Get-Random -Max 256})).Substring(0,64)"') do set ENC_KEY=%%i
+  for /f %%i in ('powershell -Command "[Convert]::ToBase64String((1..24|%%{Get-Random -Max 256})).Substring(0,32)"') do set DB_PWD=%%i
+
   copy .env.example .env >nul
-  echo   ^> 请编辑 .env 修改密码和 API Key，然后重新运行本脚本
-  echo.
-  start notepad .env
-  pause
-  exit /b
+
+  :: 替换占位密码
+  powershell -Command ^
+    (Get-Content .env) ^
+      -replace 'REPLACE_WITH_YOUR_OWN_PASSWORD_12345','%DB_PWD%' ^
+      -replace 'REPLACE_WITH_YOUR_OWN_JWT_SECRET_32CHARS_','%JWT_KEY%' ^
+      -replace '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef','%ENC_KEY%' ^
+    ^| Set-Content .env
+
+  echo   .env 已生成（密钥已自动填充）。
+  echo   LLM API Key 等请登录后在 设置 页面配置。
 ) else (
   echo [1/6] .env 已存在，跳过。
 )
@@ -79,6 +91,11 @@ echo.
 echo   前端地址：http://localhost:3000
 echo   后端 API：http://localhost:8005
 echo   API 文档：http://localhost:8005/docs
+echo.
+echo   首次使用：
+echo     1. 浏览器打开 http://localhost:3000
+echo     2. 注册账号
+echo     3. 进入 设置 页面配置 LLM API Key
 echo.
 echo   按任意键退出（服务将在后台继续运行）
 echo ============================================

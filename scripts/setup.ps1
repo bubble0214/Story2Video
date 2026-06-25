@@ -307,8 +307,8 @@ if (-not (Test-Path $venvPath)) {
     Write-Ok "虚拟环境已存在，跳过。"
 }
 
-Write-Info "安装 pip 依赖 ..."
-& $pipExe install -r (Join-Path $projectRoot "requirements.txt") --quiet 2>&1 | Out-Null
+Write-Info "安装 pip 依赖（显示进度）..."
+& $pipExe install -r (Join-Path $projectRoot "requirements.txt") 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Err "Python 依赖安装失败，请检查 requirements.txt。"
     exit 1
@@ -339,9 +339,9 @@ $clientDir = Join-Path $projectRoot "client"
 $nodeModules = Join-Path $clientDir "node_modules"
 
 if (-not (Test-Path $nodeModules)) {
-    Write-Info "安装 npm 依赖 ..."
+    Write-Info "安装 npm 依赖（显示进度）..."
     Push-Location $clientDir
-    npm install --legacy-peer-deps 2>&1 | Out-Null
+    npm install --legacy-peer-deps 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Err "npm install 失败，请检查网络或 Node.js 版本。"
         Pop-Location

@@ -316,7 +316,7 @@ sleep 3
 # 验证 API
 API_UP=false
 for i in $(seq 1 10); do
-    if curl -s -o /dev/null -w '%{http_code}' "http://localhost:$API_PORT/api/docs" 2>/dev/null | grep -q "200"; then
+    if curl -s -o /dev/null -w '%{http_code}' "http://localhost:$API_PORT/api/v1/docs" 2>/dev/null | grep -q "200"; then
         API_UP=true
         break
     fi

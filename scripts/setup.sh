@@ -94,6 +94,13 @@ else
     install_pkg python3 python3-pip python3-venv || WARN "Python 安装失败，请手动安装。"
 fi
 
+# 确保 python3-venv 已安装（Ubuntu 最小安装经常缺失）
+if [ "$PKG_MGR" = "apt" ]; then
+    INFO "检查 python3-venv ..."
+    dpkg -l python3-venv &>/dev/null || install_pkg_apt python3-venv
+    python3 -m venv --help &>/dev/null || install_pkg_apt python3-venv
+fi
+
 # Node.js
 if command_exists node; then
     OK "Node.js $(node --version 2>&1) 已安装。"

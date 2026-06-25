@@ -12,7 +12,6 @@ class TaskService:
 
     WORKFLOW_MAP: dict[str, str] = {
         "generate_novel": "workflow_generate_novel",
-        "generate_long_novel": "workflow_generate_long_novel",
         "generate_outline_only": "workflow_generate_outline_only",
         "generate_volume_outline_only": "workflow_generate_volume_outline_only",
         "generate_character_rules_only": "workflow_generate_character_rules_only",
@@ -61,7 +60,6 @@ class TaskService:
     def _queue_for_workflow(self, workflow_type: str) -> str:
         queue_map = {
             "generate_novel": "novel_generation",
-            "generate_long_novel": "novel_generation",
             "generate_outline_only": "novel_generation",
             "generate_volume_outline_only": "novel_generation",
             "generate_character_rules_only": "novel_generation",

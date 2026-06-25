@@ -592,104 +592,6 @@ async def _step_generate_novel_by_chapters(
     return {"novel_content": novel, "title": title}
 
 
-async def _step_generate_chapters(
-    input_params: dict, context: dict, user_id: UUID | None = None,
-) -> dict:
-    """Generate each chapter of a long novel sequentially."""
-    if user_id is None:
-        raise ValueError("User ID required to resolve LLM API key")
-
-    outline = context.get("outline", {})
-    chapters = outline.get("chapters", [])
-    if not chapters:
-        raise ValueError("No chapter outline found. Outline generation may have failed.")
-
-    custom_prompt = input_params.get("custom_prompt", "")
-    refs = context.get("references", [])
-    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
-    if llm_provider == "custom":
-        llm_provider = "openai"
-    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
-
-    # Build reference text once
-    ref_text = ""
-    if refs:
-        ref_text = "\n".join(
-            f"- {r['title']}: {r['summary'][:500]}" for r in refs
-        )
-
-    generated_chapters = []
-    total = len(chapters)
-    # Try to get task_id from context for checkpoint updates
-    task_id_str = input_params.get("_task_id")
-
-    for i, chapter_info in enumerate(chapters):
-        title = chapter_info.get("title", f"Chapter {i+1}")
-        description = chapter_info.get("description", "")
-
-        system_prompt = (
-            "You are a professional novelist. Write a compelling, detailed chapter "
-            "for an original novel. The chapter should have vivid descriptions, "
-            "natural dialogue, and engaging prose. Write in Chinese. "
-            "Output the complete chapter in markdown format."
-        )
-
-        user_parts = [f"# User Instructions\n{custom_prompt}"]
-        if ref_text:
-            user_parts.append(f"# Reference Novels\n{ref_text}")
-        user_parts.append(f"# Chapter {i+1} of {total}\nTitle: {title}\nDescription: {description}")
-
-        # Add summaries of previous chapters for continuity
-        if generated_chapters:
-            prev_summary = "\n".join(
-                f"- {c['title']}: {c['content'][:200]}..."
-                for c in generated_chapters[-3:]
-            )
-            user_parts.append(f"# Previous Chapters Summary\n{prev_summary}")
-
-        user_parts.append(f"\nWrite Chapter {i+1}: {title} now. Make it detailed and substantial (at least 800 words).")
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "\n\n".join(user_parts)},
-        ]
-
-        chapter_content = await provider.chat(messages)
-        generated_chapters.append({
-            "title": title,
-            "content": chapter_content,
-        })
-
-        # Update progress checkpoint after each chapter
-        if task_id_str:
-            try:
-                progress = 50.0 + ((i + 1) / total) * 40.0  # 50% → 90%
-                await _set_checkpoint(
-                    UUID(task_id_str),
-                    "RUNNING", progress, f"generate_chapters ({i+1}/{total})",
-                    checkpoint={
-                        **context,
-                        "outline": outline,
-                        "chapters_progress": generated_chapters,
-                    },
-                )
-            except Exception:
-                logger.warning("Failed to update chapter checkpoint", exc_info=True)
-
-    # Merge all chapters into one full novel text
-    full_novel = ""
-    for i, ch in enumerate(generated_chapters):
-        full_novel += f"# {ch['title']}\n\n{ch['content']}\n\n---\n\n"
-
-    title = generated_chapters[0]["title"] if generated_chapters else input_params.get("custom_prompt", "Untitled").split("\n")[0][:60]
-
-    return {
-        "chapters": generated_chapters,
-        "novel_content": full_novel,
-        "title": title,
-    }
-
-
 async def _step_generate_script(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
@@ -956,9 +858,6 @@ _STEP_REGISTRY = {
     "generate_novel": _step_generate_novel,
     "generate_novel_by_chapters": _step_generate_novel_by_chapters,
     "generate_outline": _step_generate_outline,
-    "generate_volume_outline": _step_generate_volume_outline,
-    "generate_character_rules": _step_generate_character_rules,
-    "generate_chapters": _step_generate_chapters,
     "generate_script": _step_generate_script,
     "generate_novel_tweet": _step_generate_novel_tweet,
     "generate_video_tweet": _step_generate_video_tweet,
@@ -976,7 +875,6 @@ _STEP_WEIGHTS = {
     "generate_outline": 10.0,
     "generate_volume_outline": 15.0,
     "generate_character_rules": 10.0,
-    "generate_chapters": 50.0,
     "generate_script": 10.0,
     "generate_novel_tweet": 10.0,
     "generate_video_tweet": 10.0,
@@ -991,7 +889,6 @@ _STEP_WEIGHTS = {
 
 _WORKFLOWS: dict[str, list[str]] = {
     "generate_novel": ["search_reference_novels", "generate_novel"],
-    "generate_long_novel": ["search_reference_novels", "generate_outline", "generate_chapters"],
     "generate_outline_only": ["search_reference_novels", "generate_outline"],
     "generate_volume_outline_only": ["search_reference_novels", "generate_outline", "generate_volume_outline"],
     "generate_character_rules_only": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_character_rules"],
@@ -1140,17 +1037,6 @@ def _run_workflow(task_id: str, user_id: str, steps: list[str], input_params: di
 def workflow_generate_novel(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search reference novels → generate novel."""
     steps = _WORKFLOWS["generate_novel"]
-    return _run_workflow(task_id, user_id, steps, input_params)
-
-
-@celery_app.task(
-    name="workflow_generate_long_novel",
-    acks_late=True,
-)
-def workflow_generate_long_novel(task_id: str, user_id: str, input_params: dict) -> dict:
-    """Workflow: search references → generate outline → generate chapters (long novel)."""
-    input_params["_task_id"] = task_id
-    steps = _WORKFLOWS["generate_long_novel"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

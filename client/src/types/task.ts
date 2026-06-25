@@ -1,6 +1,5 @@
 export type WorkflowType =
   | 'generate_novel'
-  | 'generate_long_novel'
   | 'generate_outline_only'
   | 'generate_volume_outline_only'
   | 'generate_character_rules_only'

@@ -36,4 +36,5 @@ vol2_retro.py
 client/*.txt
 client/*.json
 client/*_test.py
-client/docs_debug.htmlclient/.env.local
+client/docs_debug.html
+client/.env.local

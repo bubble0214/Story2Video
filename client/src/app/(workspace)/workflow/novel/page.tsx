@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { Suspense, useState, useRef, useEffect } from 'react';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import { draftsApi } from '@/services/drafts';
 import type { NovelDraftStepData } from '@/types/draft';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/model-selector';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function NovelPage() {
+function NovelPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const draftParam = searchParams.get('draft');
@@ -111,5 +111,13 @@ export default function NovelPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function NovelPage() {
+  return (
+    <Suspense fallback={<div className="py-8 px-4 max-w-2xl mx-auto"><p className="text-muted-foreground">加载中...</p></div>}>
+      <NovelPageInner />
+    </Suspense>
   );
 }

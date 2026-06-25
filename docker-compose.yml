@@ -6,6 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-story2video}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
     ports:
+      # 宿主 5434 → 容器 5432，避免与本机已有 PostgreSQL 冲突
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -19,6 +20,7 @@ services:
     image: redis:7.2
     command: redis-server --protected-mode no --bind 0.0.0.0
     ports:
+      # 宿主 6383 → 容器 6379，避免与本机已有 Redis 冲突
       - "6383:6379"
     volumes:
       - redis_data:/data

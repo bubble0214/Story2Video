@@ -27,4 +27,10 @@ export interface WorkflowState {
   completedSteps: WorkflowType[];
   currentTaskId: string | null;
   customPrompt: string;
+  novelContent: string;
+  novelTweetContent: string;
+  videoTweetContent: string;
+  outlineContent: string;
+  volumeOutlineContent: string;
+  characterRulesContent: string;
 }

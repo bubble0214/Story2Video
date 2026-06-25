@@ -80,7 +80,7 @@ class NovelService:
             {"role": "user", "content": user_prompt},
         ]
 
-        content = await self._llm_provider.chat(messages)
+        content = await self._llm_provider.chat(messages, temperature=0.8)
 
         json_match = re.search(r"\[.*\]", content, re.DOTALL)
         if not json_match:

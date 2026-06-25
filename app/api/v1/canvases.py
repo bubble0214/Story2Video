@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUserId, get_db
@@ -127,7 +127,7 @@ async def delete_canvas(
     canvas_id: UUID,
     user_id: CurrentUserId,
     svc: CanvasService = Depends(get_canvas_service),
-) -> None:
+) -> Response:
     # Verify ownership
     existing = await svc.get(canvas_id)
     if existing is None:
@@ -141,3 +141,4 @@ async def delete_canvas(
             detail="Canvas does not belong to this user",
         )
     await svc.delete(canvas_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,15 +1,10 @@
 'use client';
 
-import { useWorkflow } from '@/hooks/use-workflow';
-import { Button } from '@/components/ui/button';
-
 interface ImageTabProps {
   imageUrl?: string | null;
-  workflowType?: string;
 }
 
-export function ImageTab({ imageUrl, workflowType }: ImageTabProps) {
-  const { goToNextStep } = useWorkflow();
+export function ImageTab({ imageUrl }: ImageTabProps) {
 
   return (
     <div className="space-y-4">
@@ -18,21 +13,13 @@ export function ImageTab({ imageUrl, workflowType }: ImageTabProps) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
-            alt="Generated image"
+            alt="生成的图片"
             className="w-full h-auto"
           />
         </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">
-          Image generation not yet available. Continue the workflow to generate
-          one.
-        </div>
-      )}
-      {workflowType && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={() => goToNextStep(workflowType)}>
-            Next Step: Generate Video
-          </Button>
+          图片生成暂不可用。继续工作流以生成。
         </div>
       )}
     </div>

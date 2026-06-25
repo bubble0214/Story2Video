@@ -45,7 +45,7 @@ export function RecentProjects() {
     <div className="border-t">
       <div className="px-3 pt-2 pb-1">
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Recent
+          最近
         </p>
       </div>
       <div className="px-1 pb-1 space-y-0.5">

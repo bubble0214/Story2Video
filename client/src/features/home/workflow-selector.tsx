@@ -1,13 +1,14 @@
 'use client';
 
-import { BookOpen, FileText, Music, Video } from 'lucide-react';
+import { BookOpen, FileText, Music, Video, Clapperboard } from 'lucide-react';
 import { useWorkflowStore } from '@/stores/workflow-store';
 
 const WORKFLOW_OPTIONS = [
-  { mode: 'novel' as const, label: 'Novel', Icon: BookOpen },
-  { mode: 'lyrics' as const, label: 'Lyrics', Icon: FileText },
-  { mode: 'song' as const, label: 'Song', Icon: Music },
-  { mode: 'video' as const, label: 'Video', Icon: Video },
+  { mode: 'novel' as const, label: '小说', Icon: BookOpen },
+  { mode: 'script' as const, label: '剧本', Icon: Clapperboard },
+  { mode: 'lyrics' as const, label: '歌词', Icon: FileText },
+  { mode: 'song' as const, label: '歌曲', Icon: Music },
+  { mode: 'video' as const, label: '视频', Icon: Video },
 ];
 
 export function WorkflowSelector() {
@@ -15,7 +16,7 @@ export function WorkflowSelector() {
   const setWorkflowMode = useWorkflowStore((s) => s.setWorkflowMode);
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
       {WORKFLOW_OPTIONS.map((opt) => {
         const isSelected = workflowMode === opt.mode;
         const Icon = opt.Icon;

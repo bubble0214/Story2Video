@@ -19,7 +19,7 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
     return (
       <Card>
         <CardContent className="pt-6 text-center">
-          <p className="text-muted-foreground">Loading task...</p>
+          <p className="text-muted-foreground">加载任务...</p>
         </CardContent>
       </Card>
     );
@@ -30,10 +30,10 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
       <Card>
         <CardContent className="pt-6 text-center">
           <p className="text-destructive mb-2">
-            Error loading task: {(error as Error)?.message}
+            加载任务失败: {(error as Error)?.message}
           </p>
           <Button variant="outline" onClick={() => refetch()}>
-            Retry
+            重试
           </Button>
         </CardContent>
       </Card>
@@ -64,12 +64,12 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
             }`}
           />
           {task.status === 'SUCCESS'
-            ? 'Completed'
+            ? '已完成'
             : task.status === 'FAILED'
-              ? 'Failed'
+              ? '失败'
               : task.status === 'RUNNING'
-                ? 'Processing...'
-                : 'Pending'}
+                ? '处理中...'
+                : '等待中'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,11 +94,11 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
                 className="flex-1"
                 onClick={() => router.push(`/result/${taskId}`)}
               >
-                View Result
+                查看结果
               </Button>
             ) : (
               <Button className="flex-1" variant="outline" onClick={() => router.push('/')}>
-                Back to Home
+                返回首页
               </Button>
             )}
           </div>
@@ -110,7 +110,7 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
             className="w-full"
             onClick={() => router.push('/')}
           >
-            Cancel
+            取消
           </Button>
         )}
       </CardContent>

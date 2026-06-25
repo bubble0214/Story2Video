@@ -71,7 +71,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Sparkles className="h-3 w-3" />
-        <span>Loading...</span>
+        <span>加载中...</span>
       </div>
     );
   }
@@ -80,7 +80,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-destructive/70">
         <Sparkles className="h-3 w-3" />
-        <span>Model error</span>
+        <span>模型错误</span>
       </div>
     );
   }
@@ -89,7 +89,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
         <Sparkles className="h-3 w-3" />
-        <span>No model configured</span>
+        <span>未配置模型</span>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="end">
-        <SelectItem value="">Auto (default)</SelectItem>
+        <SelectItem value="">自动（默认）</SelectItem>
         {options.map((opt) => (
           <SelectItem key={opt.id} value={opt.value}>
             {opt.label}

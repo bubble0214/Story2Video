@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useWorkflowStore } from '@/stores/workflow-store';
+import { CurrentTaskBanner } from '@/components/current-task-banner';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -24,12 +25,12 @@ interface SidebarItem {
 }
 
 const WORKFLOW_ITEMS: SidebarItem[] = [
-  { mode: 'novel', label: 'Novel', Icon: PenLine },
-  { mode: 'script', label: 'Script', Icon: FileText },
-  { mode: 'lyrics', label: 'Lyrics', Icon: FileText },
-  { mode: 'song', label: 'Song', Icon: Music },
-  { mode: 'image', label: 'Image', Icon: Image },
-  { mode: 'video', label: 'Video', Icon: Video },
+  { mode: 'novel', label: '小说', Icon: PenLine },
+  { mode: 'script', label: '剧本', Icon: FileText },
+  { mode: 'lyrics', label: '歌词', Icon: FileText },
+  { mode: 'song', label: '歌曲', Icon: Music },
+  { mode: 'image', label: '图片', Icon: Image },
+  { mode: 'video', label: '视频', Icon: Video },
 ];
 
 const WORKFLOW_PATHS: Record<string, string> = {
@@ -56,7 +57,7 @@ export function Sidebar() {
         {/* Workflow Section */}
         <div className="space-y-1">
           <p className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Workflow
+            工作流
           </p>
           {WORKFLOW_ITEMS.map((item) => (
             <Button
@@ -81,7 +82,7 @@ export function Sidebar() {
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors"
         >
           <PenTool className="h-4 w-4" />
-          Canvas
+          画布
         </Link>
 
         {/* Assets */}
@@ -90,7 +91,7 @@ export function Sidebar() {
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors"
         >
           <FolderOpen className="h-4 w-4" />
-          Assets
+          资产
         </Link>
 
         {/* Spacer */}

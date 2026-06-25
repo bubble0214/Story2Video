@@ -8,6 +8,12 @@ interface WorkflowStore extends WorkflowState {
   setWorkflowMode: (mode: WorkflowMode) => void;
   setSelectedNovel: (novelId: string) => void;
   setCustomPrompt: (prompt: string) => void;
+  setNovelContent: (content: string) => void;
+  setNovelTweetContent: (content: string) => void;
+  setVideoTweetContent: (content: string) => void;
+  setOutlineContent: (content: string) => void;
+  setVolumeOutlineContent: (content: string) => void;
+  setCharacterRulesContent: (content: string) => void;
   addCompletedStep: (type: WorkflowType) => void;
   setCurrentTaskId: (taskId: string | null) => void;
   reset: () => void;
@@ -21,6 +27,12 @@ const initialState: WorkflowState = {
   completedSteps: [],
   currentTaskId: null,
   customPrompt: '',
+  novelContent: '',
+  novelTweetContent: '',
+  videoTweetContent: '',
+  outlineContent: '',
+  volumeOutlineContent: '',
+  characterRulesContent: '',
 };
 
 export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
@@ -30,6 +42,12 @@ export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
   setWorkflowMode: (workflowMode) => set({ workflowMode }),
   setSelectedNovel: (selectedNovelId) => set({ selectedNovelId }),
   setCustomPrompt: (customPrompt) => set({ customPrompt }),
+  setNovelContent: (novelContent) => set({ novelContent }),
+  setNovelTweetContent: (novelTweetContent) => set({ novelTweetContent }),
+  setVideoTweetContent: (videoTweetContent) => set({ videoTweetContent }),
+  setOutlineContent: (outlineContent) => set({ outlineContent }),
+  setVolumeOutlineContent: (volumeOutlineContent) => set({ volumeOutlineContent }),
+  setCharacterRulesContent: (characterRulesContent) => set({ characterRulesContent }),
 
   addCompletedStep: (type) =>
     set((state) => ({

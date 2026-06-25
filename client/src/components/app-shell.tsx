@@ -25,23 +25,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {!isAuthPage && !isAuthenticated && (
               <>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link href="/auth/login">Login</Link>
+                  <Link href="/auth/login">登录</Link>
                 </Button>
                 <Button size="sm" asChild>
-                  <Link href="/auth/register">Register</Link>
+                  <Link href="/auth/register">注册</Link>
                 </Button>
               </>
             )}
             {isAuthenticated && (
               <>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link href="/">Home</Link>
+                  <Link href="/">首页</Link>
                 </Button>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link href="/settings">Settings</Link>
+                  <Link href="/settings">设置</Link>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={logout}>
-                  Logout
+                  退出登录
                 </Button>
               </>
             )}

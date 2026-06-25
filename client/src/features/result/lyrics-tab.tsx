@@ -1,17 +1,12 @@
 'use client';
 
-import { useWorkflow } from '@/hooks/use-workflow';
-import { Button } from '@/components/ui/button';
-
 interface LyricsTabProps {
   content: string;
-  workflowType?: string;
 }
 
-export function LyricsTab({ content, workflowType }: LyricsTabProps) {
+export function LyricsTab({ content }: LyricsTabProps) {
   const hasContent =
     content && content !== 'No lyrics content generated.';
-  const { goToNextStep } = useWorkflow();
 
   return (
     <div className="space-y-4">
@@ -24,13 +19,6 @@ export function LyricsTab({ content, workflowType }: LyricsTabProps) {
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           {content}
-        </div>
-      )}
-      {workflowType && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={() => goToNextStep(workflowType)}>
-            Next Step: Generate Song
-          </Button>
         </div>
       )}
     </div>

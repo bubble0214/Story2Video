@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
 
-const API_BASE_URL = 'http://localhost:8001/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -19,6 +19,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
+    // Skip 401 handling for login and register endpoints
+    const url = error.config?.url || '';
+    if (url.includes('/auth/login') || url.includes('/auth/register')) {
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401) {
       // Try refresh
       const refreshToken = useAuthStore.getState().refreshToken;

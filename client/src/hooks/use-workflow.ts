@@ -66,7 +66,9 @@ export function useWorkflow() {
     if (currentIndex < nextStepOrder.length - 1) {
       const next = nextStepOrder[currentIndex + 1];
       store.addCompletedStep(currentWorkflowType as WorkflowType);
-      createTaskMutation.mutate({ workflowType: next });
+      // Navigate to the workflow page instead of auto-creating a task
+      const mode = WORKFLOW_TYPE_TO_MODE[next] || next.replace('generate_', '');
+      router.push(`/workflow/${mode}`);
     } else {
       store.addCompletedStep(currentWorkflowType as WorkflowType);
       toast({ title: 'Workflow complete! All steps finished.' });

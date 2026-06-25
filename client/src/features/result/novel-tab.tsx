@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useWorkflow } from '@/hooks/use-workflow';
 import { tasksApi } from '@/services/tasks';
+import { useWorkflowStore } from '@/stores/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -23,11 +23,9 @@ export function NovelTab({ content, workflowType, chapters, taskId, resultTitle 
   const [editedContent, setEditedContent] = useState('');
   const hasContent = content && content !== 'No novel content generated.';
   const hasChapters = chapters && chapters.length > 0;
-  const { goToNextStep } = useWorkflow();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // For multi-chapter novels, merge all chapters into one markdown for editing
   const fullMarkdown = useMemo(() => {
     if (hasChapters) {
       return chapters!
@@ -62,7 +60,6 @@ export function NovelTab({ content, workflowType, chapters, taskId, resultTitle 
   };
 
   const handleSave = () => {
-    // Extract title from first # heading
     let title = resultTitle || '未命名';
     for (const line of editedContent.split('\n')) {
       const trimmed = line.trim();
@@ -168,10 +165,10 @@ export function NovelTab({ content, workflowType, chapters, taskId, resultTitle 
               disabled={currentChapter === 0}
               onClick={() => setCurrentChapter(currentChapter - 1)}
             >
-              Previous Chapter
+              上一章
             </Button>
             <span className="text-sm text-muted-foreground">
-              Chapter {currentChapter + 1} of {chapters!.length}
+              第 {currentChapter + 1} 章 / 共 {chapters!.length} 章
             </span>
             <Button
               variant="outline"
@@ -179,7 +176,7 @@ export function NovelTab({ content, workflowType, chapters, taskId, resultTitle 
               disabled={currentChapter === chapters!.length - 1}
               onClick={() => setCurrentChapter(currentChapter + 1)}
             >
-              Next Chapter
+              下一章
             </Button>
           </div>
         </>
@@ -189,13 +186,6 @@ export function NovelTab({ content, workflowType, chapters, taskId, resultTitle 
         </div>
       )}
 
-      {workflowType && !isEditing && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={() => goToNextStep(workflowType)}>
-            Next Step: Generate Script
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

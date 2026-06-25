@@ -25,15 +25,15 @@ import {
 
 const registerSchema = z
   .object({
-    email: z.string().email('Please enter a valid email'),
+    email: z.string().email('请输入有效的邮箱地址'),
     password: z
       .string()
-      .min(6, 'Password must be at least 6 characters')
-      .max(72, 'Password must be at most 72 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
+      .min(6, '密码至少6个字符')
+      .max(72, '密码最多72个字符'),
+    confirmPassword: z.string().min(1, '请确认密码'),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
+    message: '两次密码不一致',
     path: ['confirmPassword'],
   });
 
@@ -54,8 +54,8 @@ export function RegisterForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Register</CardTitle>
-        <CardDescription>Create a new account</CardDescription>
+        <CardTitle className="text-2xl font-bold">注册</CardTitle>
+        <CardDescription>创建新账户</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -65,7 +65,7 @@ export function RegisterForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>邮箱</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -82,11 +82,11 @@ export function RegisterForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>密码</FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="At least 6 characters"
+                      placeholder="至少6个字符"
                       {...field}
                     />
                   </FormControl>
@@ -99,9 +99,9 @@ export function RegisterForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
+                  <FormLabel>确认密码</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Re-enter password" {...field} />
+                    <Input type="password" placeholder="再次输入密码" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -112,17 +112,17 @@ export function RegisterForm() {
               className="w-full"
               disabled={isRegisterLoading}
             >
-              {isRegisterLoading ? 'Registering...' : 'Register'}
+              {isRegisterLoading ? '注册中...' : '注册'}
             </Button>
           </form>
         </Form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
+          已有账号？{' '}
           <Link
             href="/auth/login"
             className="font-medium text-primary hover:underline"
           >
-            Login
+            登录
           </Link>
         </p>
       </CardContent>

@@ -43,6 +43,36 @@ celery_app.conf.update(
             "routing_key": "novel_generation",
             "priority": 6,
         },
+        "workflow_generate_outline_only": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
+        "workflow_generate_volume_outline_only": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
+        "workflow_generate_novel_with_outline": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
+        "workflow_generate_novel_with_volume_outline": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
+        "workflow_generate_character_rules_only": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
+        "workflow_generate_novel_with_character_rules": {
+            "queue": "novel_generation",
+            "routing_key": "novel_generation",
+            "priority": 6,
+        },
         "workflow_generate_script": {
             "queue": "script_generation",
             "routing_key": "script_generation",

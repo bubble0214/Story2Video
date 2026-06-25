@@ -21,27 +21,25 @@ const PROVIDERS = [
   { value: 'claude', label: 'Claude (Anthropic)' },
   { value: 'gemini', label: 'Gemini (Google)' },
   { value: 'deepseek', label: 'DeepSeek' },
-  { value: 'qwen', label: 'Qwen (Alibaba)' },
-  { value: 'suno', label: 'Suno (Music)' },
-  { value: 'udio', label: 'Udio (Music)' },
-  { value: 'minimax', label: 'MiniMax (Music)' },
-  { value: 'heygen', label: 'HeyGen (Avatar)' },
-  { value: 'd-id', label: 'D-ID (Avatar)' },
-  { value: 'custom', label: 'Custom (OpenAI-compatible)' },
-  { value: 'glm', label: 'GLM (Zhipu AI)' },
+  { value: 'qwen', label: '通义千问 (阿里)' },
+  { value: 'suno', label: 'Suno (音乐)' },
+  { value: 'udio', label: 'Udio (音乐)' },
+  { value: 'minimax', label: 'MiniMax (音乐)' },
+  { value: 'heygen', label: 'HeyGen (数字人)' },
+  { value: 'd-id', label: 'D-ID (数字人)' },
+  { value: 'custom', label: '自定义 (兼容 OpenAI)' },
+  { value: 'glm', label: 'GLM (智谱)' },
 ];
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // --- LLM API Key state ---
   const [newProvider, setNewProvider] = useState('');
   const [newKey, setNewKey] = useState('');
   const [newBaseUrl, setNewBaseUrl] = useState('');
   const [newModelName, setNewModelName] = useState('');
 
-  // Fetch existing keys
   const {
     data: keysResponse,
     isLoading: keysLoading,
@@ -51,7 +49,6 @@ export default function SettingsPage() {
     queryFn: () => apiKeysApi.list(),
   });
 
-  // Fetch user preferences
   const { data: prefsResponse } = useQuery({
     queryKey: ['preferences'],
     queryFn: () => preferencesApi.get(),
@@ -59,7 +56,6 @@ export default function SettingsPage() {
 
   const keys = keysResponse?.data ?? [];
 
-  // --- Mutations ---
   const createMutation = useMutation({
     mutationFn: (data: { provider: string; key: string; base_url?: string; model_name?: string }) =>
       apiKeysApi.create(data),
@@ -69,18 +65,18 @@ export default function SettingsPage() {
       setNewKey('');
       setNewBaseUrl('');
       setNewModelName('');
-      toast({ title: 'API key saved' });
+      toast({ title: 'API 密钥已保存' });
     },
     onError: (error) => {
       const err = error as { response?: { data?: { detail?: string | unknown[] } }; message?: string };
-      let msg = err.message || 'Unknown error';
+      let msg = err.message || '未知错误';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
         msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }
-      toast({ title: 'Failed to save key', description: msg, variant: 'destructive' });
+      toast({ title: '保存密钥失败', description: msg, variant: 'destructive' });
     },
   });
 
@@ -88,11 +84,11 @@ export default function SettingsPage() {
     mutationFn: (id: string) => apiKeysApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast({ title: 'API key deleted' });
+      toast({ title: 'API 密钥已删除' });
     },
     onError: (error) => {
       const err = error as { response?: { data?: { detail?: string } }; message?: string };
-      toast({ title: 'Failed to delete key', description: err.response?.data?.detail || err.message, variant: 'destructive' });
+      toast({ title: '删除密钥失败', description: err.response?.data?.detail || err.message, variant: 'destructive' });
     },
   });
 
@@ -102,31 +98,31 @@ export default function SettingsPage() {
     onSuccess: (resp) => {
       const data = resp.data;
       toast({
-        title: data.success ? 'Connection successful' : 'Connection failed',
+        title: data.success ? '连接成功' : '连接失败',
         description: data.message,
         variant: data.success ? 'default' : 'destructive',
       });
     },
     onError: (error) => {
       const err = error as { response?: { data?: { detail?: string | unknown[] } }; message?: string };
-      let msg = err.message || 'Unknown error';
+      let msg = err.message || '未知错误';
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
         msg = (detail as { msg?: string }[]).map((d) => d.msg).filter(Boolean).join('; ');
       } else if (typeof detail === 'string') {
         msg = detail;
       }
-      toast({ title: 'Test failed', description: msg, variant: 'destructive' });
+      toast({ title: '测试失败', description: msg, variant: 'destructive' });
     },
   });
 
   const handleAddKey = () => {
     if (!newProvider || !newKey.trim()) {
-      toast({ title: 'Please select a provider and enter a key', variant: 'destructive' });
+      toast({ title: '请选择提供商并输入密钥', variant: 'destructive' });
       return;
     }
     if (newProvider === 'custom' && !newBaseUrl.trim()) {
-      toast({ title: 'Please enter a base URL for custom provider', variant: 'destructive' });
+      toast({ title: '自定义提供商需要输入基础 URL', variant: 'destructive' });
       return;
     }
     createMutation.mutate({
@@ -140,19 +136,18 @@ export default function SettingsPage() {
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">设置</h1>
         <p className="text-muted-foreground mt-1">
-          Manage your API keys and provider preferences
+          管理你的 API 密钥和提供商偏好
         </p>
       </div>
 
-      {/* Add new LLM API Key */}
       <Card>
         <CardHeader>
-          <CardTitle>Add API Key</CardTitle>
+          <CardTitle>添加 API 密钥</CardTitle>
           <CardDescription>
-            Keys are encrypted and stored securely. You need at least one LLM
-            provider (OpenAI, DeepSeek, etc.) for novel/script/lyrics generation.
+            密钥加密后安全存储。你至少需要一个 LLM 提供商（OpenAI、DeepSeek 等）
+            来生成小说/剧本/歌词。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -164,7 +159,7 @@ export default function SettingsPage() {
                 onChange={(e) => setNewProvider(e.target.value)}
               >
                 <option value="" disabled>
-                  Select provider
+                  选择提供商
                 </option>
                 {PROVIDERS.map((p) => (
                   <option key={p.value} value={p.value}>
@@ -184,12 +179,12 @@ export default function SettingsPage() {
           {(newProvider === 'custom' || newBaseUrl || newModelName) && (
             <>
               <Input
-                placeholder="Base URL (e.g., https://api.example.com/v1)"
+                placeholder="基础 URL（如 https://api.example.com/v1）"
                 value={newBaseUrl}
                 onChange={(e) => setNewBaseUrl(e.target.value)}
               />
               <Input
-                placeholder="Model name (e.g., gpt-4o-mini)"
+                placeholder="模型名称（如 gpt-4o-mini）"
                 value={newModelName}
                 onChange={(e) => setNewModelName(e.target.value)}
               />
@@ -197,7 +192,7 @@ export default function SettingsPage() {
           )}
           <div className="flex gap-2">
             <Button onClick={handleAddKey} disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Saving...' : 'Save'}
+              {createMutation.isPending ? '保存中...' : '保存'}
             </Button>
             {newProvider && newKey.trim() && (
               <Button
@@ -212,8 +207,8 @@ export default function SettingsPage() {
                 }
                 disabled={testMutation.isPending}
               >
-                {testMutation.isPending ? 'Testing...' : (
-                  <><Zap className="h-4 w-4" /> Test Connection</>
+                {testMutation.isPending ? '测试中...' : (
+                  <><Zap className="h-4 w-4" /> 测试连接</>
                 )}
               </Button>
             )}
@@ -221,12 +216,11 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Existing keys */}
       <Card>
         <CardHeader>
-          <CardTitle>Saved API Keys</CardTitle>
+          <CardTitle>已保存的 API 密钥</CardTitle>
           <CardDescription>
-            Your stored provider keys. The raw key is never shown after save.
+            你存储的提供商密钥。保存后不显示原始密钥。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -238,11 +232,11 @@ export default function SettingsPage() {
             </div>
           )}
           {keysError && (
-            <p className="text-destructive text-sm">Failed to load API keys</p>
+            <p className="text-destructive text-sm">加载 API 密钥失败</p>
           )}
           {!keysLoading && !keysError && keys.length === 0 && (
             <p className="text-muted-foreground text-sm">
-              No API keys configured yet. Add one above.
+              尚未配置 API 密钥。请在上方添加。
             </p>
           )}
           {keys.length > 0 && (
@@ -265,11 +259,11 @@ export default function SettingsPage() {
                       )}
                       {key.model_name && (
                         <p className="text-xs text-muted-foreground font-mono">
-                          Model: {key.model_name}
+                          模型: {key.model_name}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Saved {new Date(key.created_at).toLocaleDateString()}
+                        保存于 {new Date(key.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -284,7 +278,7 @@ export default function SettingsPage() {
                         disabled={testMutation.isPending}
                       >
                         <Zap className="h-3.5 w-3.5 mr-1" />
-                        Test
+                        测试
                       </Button>
                       <Button
                         variant="destructive"
@@ -292,7 +286,7 @@ export default function SettingsPage() {
                         onClick={() => deleteMutation.mutate(key.id)}
                         disabled={deleteMutation.isPending}
                       >
-                        Delete
+                        删除
                       </Button>
                     </div>
                   </div>

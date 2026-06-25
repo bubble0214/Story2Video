@@ -47,12 +47,12 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
     mutationFn: (id: string) => tasksApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
-      toast({ title: 'Project deleted' });
+      toast({ title: '项目已删除' });
     },
     onError: (err) => {
       const error = err as { response?: { data?: { detail?: string } }; message?: string };
       toast({
-        title: 'Failed to delete project',
+        title: '删除项目失败',
         description: error.response?.data?.detail || error.message,
         variant: 'destructive',
       });
@@ -62,10 +62,10 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">My Projects</h2>
+        <h2 className="text-xl font-semibold tracking-tight">我的项目</h2>
         {data && data.total > 0 && (
           <Button variant="link" size="sm" asChild>
-            <Link href="/">View all</Link>
+            <Link href="/">查看全部</Link>
           </Button>
         )}
       </div>
@@ -87,10 +87,10 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
         <Card>
           <CardContent className="pt-6 text-center">
             <p className="text-destructive text-sm mb-2">
-              Failed to load projects: {(error as Error)?.message}
+              加载项目失败: {(error as Error)?.message}
             </p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
+              重试
             </Button>
           </CardContent>
         </Card>
@@ -100,11 +100,10 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
         <Card>
           <CardContent className="pt-6 text-center py-8">
             <p className="text-muted-foreground text-sm mb-3">
-              No projects yet. Start by generating content above!
+              暂无项目。从上方开始生成内容吧！
             </p>
             <p className="text-xs text-muted-foreground">
-              Your completed novels, scripts, lyrics, songs, images, and videos
-              will appear here.
+              你已完成的小说、剧本、歌词、歌曲、图片和视频将出现在这里。
             </p>
           </CardContent>
         </Card>
@@ -116,7 +115,9 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
             const mode = WORKFLOW_TYPE_TO_MODE[task.workflow_type] ?? 'novel';
             const Icon = MODE_ICONS[mode] ?? PenLine;
             const statusLabel =
-              task.status.charAt(0) + task.status.slice(1).toLowerCase();
+              task.status === 'SUCCESS' ? '成功' :
+              task.status === 'FAILED' ? '失败' :
+              task.status === 'RUNNING' ? '运行中' : '等待中';
 
             return (
               <div key={task.id} className="relative group">
@@ -133,7 +134,7 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
                         <div className="flex items-center gap-2 min-w-0">
                           <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                           <span className="text-sm font-medium capitalize truncate">
-                            {mode}
+                            {mode === 'novel' ? '小说' : mode === 'script' ? '剧本' : mode === 'lyrics' ? '歌词' : mode === 'song' ? '歌曲' : mode === 'image' ? '图片' : '视频'}
                           </span>
                         </div>
                         <Badge

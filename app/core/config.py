@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +44,35 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_password: str = ""
 
+    @field_validator("postgres_port", mode="before")
+    @classmethod
+    def force_postgres_port_in_docker(cls, v):
+        # In Docker (POSTGRES_HOST=postgres), force 5432
+        import os
+        if os.environ.get("POSTGRES_HOST") == "postgres":
+            return 5432
+        return v
+
+    @field_validator("redis_port", mode="before")
+    @classmethod
+    def force_redis_port_in_docker(cls, v):
+        import os
+        if os.environ.get("REDIS_HOST") == "redis":
+            return 6379
+        return v
+
+    @field_validator("celery_broker_url", "celery_result_backend", mode="before")
+    @classmethod
+    def fix_celery_redis_url(cls, v, info):
+        import os
+        # Prefer uppercase Docker env variable over lowercase host env
+        field_name = info.field_name
+        docker_env = os.environ.get(field_name.upper())
+        if docker_env:
+            return docker_env
+        # If the value is the Docker default, let pydantic-settings use the .env value
+        return v
+
     @property
     def redis_url(self) -> str:
         if self.redis_password:
@@ -70,11 +100,11 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3004", "http://localhost:8001"]
 
     # Celery
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/1"
+    celery_broker_url: str = "redis://redis:6379/1"
+    celery_result_backend: str = "redis://redis:6379/1"
 
     # Music Generation (supported: suno, udio, minimax)
     music_provider: str = "suno"

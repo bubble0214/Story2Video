@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/card';
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('请输入有效的邮箱地址'),
+  password: z.string().min(1, '请输入密码'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -45,9 +45,9 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Login</CardTitle>
+        <CardTitle className="text-2xl font-bold">登录</CardTitle>
         <CardDescription>
-          Enter your email and password to login
+          输入邮箱和密码登录
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -58,7 +58,7 @@ export function LoginForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>邮箱</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -75,11 +75,11 @@ export function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>密码</FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="Enter your password"
+                      placeholder="请输入密码"
                       {...field}
                     />
                   </FormControl>
@@ -88,17 +88,17 @@ export function LoginForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoginLoading}>
-              {isLoginLoading ? 'Logging in...' : 'Login'}
+              {isLoginLoading ? '登录中...' : '登录'}
             </Button>
           </form>
         </Form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
+          还没有账号？{' '}
           <Link
             href="/auth/register"
             className="font-medium text-primary hover:underline"
           >
-            Register
+            注册
           </Link>
         </p>
       </CardContent>

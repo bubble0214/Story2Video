@@ -9,12 +9,12 @@ import { PenLine, FileText, Music, Image, Video, ArrowRight, type LucideIcon } f
 import type { TaskResp } from '@/types/task';
 
 const WORKFLOW_LINKS: { mode: string; label: string; Icon: LucideIcon; href: string }[] = [
-  { mode: 'novel', label: 'Novel', Icon: PenLine, href: '/workflow/novel' },
-  { mode: 'script', label: 'Script', Icon: FileText, href: '/workflow/script' },
-  { mode: 'lyrics', label: 'Lyrics', Icon: FileText, href: '/workflow/lyrics' },
-  { mode: 'song', label: 'Song', Icon: Music, href: '/workflow/song' },
-  { mode: 'image', label: 'Image', Icon: Image, href: '/workflow/image' },
-  { mode: 'video', label: 'Video', Icon: Video, href: '/workflow/video' },
+  { mode: 'novel', label: '小说', Icon: PenLine, href: '/workflow/novel' },
+  { mode: 'script', label: '剧本', Icon: FileText, href: '/workflow/script' },
+  { mode: 'lyrics', label: '歌词', Icon: FileText, href: '/workflow/lyrics' },
+  { mode: 'song', label: '歌曲', Icon: Music, href: '/workflow/song' },
+  { mode: 'image', label: '图片', Icon: Image, href: '/workflow/image' },
+  { mode: 'video', label: '视频', Icon: Video, href: '/workflow/video' },
 ];
 
 const MODE_ICONS: Record<string, LucideIcon> = {
@@ -49,13 +49,13 @@ export default function HomePage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Story2Video</h1>
         <p className="text-muted-foreground mt-1">
-          AI-powered story and content generation platform
+          AI 驱动的故事与内容创作平台
         </p>
       </div>
 
       {/* Workflow Quick Access */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Workflows</h2>
+        <h2 className="text-lg font-semibold tracking-tight">工作流</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {WORKFLOW_LINKS.map((item) => {
             const Icon = item.Icon;
@@ -67,7 +67,7 @@ export default function HomePage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">{item.label}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        Generate {item.mode} content
+                        生成{item.mode === 'novel' ? '小说' : item.mode === 'script' ? '剧本' : item.mode === 'lyrics' ? '歌词' : item.mode === 'song' ? '歌曲' : item.mode === 'image' ? '图片' : '视频'}
                       </p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -83,9 +83,9 @@ export default function HomePage() {
       {recentItems.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Recent Projects</h2>
+            <h2 className="text-lg font-semibold tracking-tight">最近项目</h2>
             <Link href="/assets" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              View all
+              查看全部
             </Link>
           </div>
           <div className="space-y-2">

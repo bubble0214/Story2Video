@@ -12,21 +12,21 @@ interface AssetCategory {
 }
 
 const CATEGORIES: AssetCategory[] = [
-  { mode: 'novel', label: 'Novels', description: 'AI-generated novels and stories', Icon: PenLine },
-  { mode: 'script', label: 'Scripts', description: 'Screenplays and scripts', Icon: FileText },
-  { mode: 'lyrics', label: 'Lyrics', description: 'Song lyrics and poems', Icon: FileText },
-  { mode: 'song', label: 'Songs', description: 'Generated music and audio', Icon: Music },
-  { mode: 'image', label: 'Images', description: 'Generated pictures and art', Icon: Image },
-  { mode: 'video', label: 'Videos', description: 'Avatar and animation videos', Icon: Video },
+  { mode: 'novel', label: '小说', description: 'AI 生成的小说和故事', Icon: PenLine },
+  { mode: 'script', label: '剧本', description: '剧本和脚本', Icon: FileText },
+  { mode: 'lyrics', label: '歌词', description: '歌词和诗歌', Icon: FileText },
+  { mode: 'song', label: '歌曲', description: '生成的音乐和音频', Icon: Music },
+  { mode: 'image', label: '图片', description: '生成的图片和艺术', Icon: Image },
+  { mode: 'video', label: '视频', description: '数字人和动画视频', Icon: Video },
 ];
 
 export default function AssetsPage() {
   return (
     <div className="container max-w-3xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Assets</h1>
+        <h1 className="text-3xl font-bold tracking-tight">资产</h1>
         <p className="text-muted-foreground mt-1">
-          Browse your generated content by category
+          按类别浏览生成的内容
         </p>
       </div>
 

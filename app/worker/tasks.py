@@ -542,18 +542,15 @@ async def _step_generate_novel_by_chapters(
         # Write up to 10 chapters for volume 2
         v2_chapter_count = 10
         for v2_chapter_num in range(31, 31 + v2_chapter_count):
-            v2_prompt = (
-                f"【第二卷·本章写作指令】\n"
-                f"- 章节编号：第{v2_chapter_num}章\n"
-                f"- 第二卷细纲参考：\n{v2_outline}\n"
-                f"- 字数要求：1800-2000字{character_rules_block}\n\n"
-                f"请开始写第{v2_chapter_num}章正文，延续第一卷的风格和人物设定，推进第二卷的剧情。"
+            v2_messages = build_chapter_messages(
+                custom_prompt=custom_prompt,
+                references=refs,
+                volume_outline=volume_outline or v2_outline,
+                character_rules=character_rules,
+                chapter_num=v2_chapter_num,
+                volume_label="第二卷",
             )
-            v2_chapter_messages = [
-                {"role": "system", "content": system_prompt + " 你已经进入第二卷的创作，保持与前文一致的风格和质量。"},
-                {"role": "user", "content": f"{shared_context}\n\n{v2_prompt}"},
-            ]
-            v2_text = (await provider.chat(v2_chapter_messages)).strip()
+            v2_text = (await provider.chat(v2_messages)).strip()
             all_chapters.append(v2_text)
 
     elif "收束结局" in decision:
@@ -568,14 +565,14 @@ async def _step_generate_novel_by_chapters(
             "每章1800-2000字，保持前后一致。"
         )
         for closing_num in range(31, 36):
-            closing_prompt = (
-                f"第{closing_num}章（结局卷）\n\n"
-                f"{closing_notes}\n\n人设硬约束：{character_rules_block}\n\n请开始写第{closing_num}章正文。"
+            closing_messages = build_chapter_messages(
+                custom_prompt=custom_prompt,
+                references=refs,
+                volume_outline=volume_outline,
+                character_rules=character_rules,
+                chapter_num=closing_num,
+                volume_label="结局卷",
             )
-            closing_messages = [
-                {"role": "system", "content": system_prompt + " 你正在为故事写结局，请确保所有主要线索得到收束，给读者满意的完结感。"},
-                {"role": "user", "content": f"{shared_context}\n\n{closing_prompt}"},
-            ]
             closing_text = (await provider.chat(closing_messages)).strip()
             all_chapters.append(closing_text)
     # else (option 2: 修改后继续): fixes already applied above, just proceed

@@ -1135,12 +1135,9 @@ def _run_workflow(task_id: str, user_id: str, steps: list[str], input_params: di
 
 @celery_app.task(
     name="workflow_generate_novel",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_novel(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_novel(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search reference novels → generate novel."""
     steps = _WORKFLOWS["generate_novel"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1148,12 +1145,9 @@ def workflow_generate_novel(self, task_id: str, user_id: str, input_params: dict
 
 @celery_app.task(
     name="workflow_generate_long_novel",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_long_novel(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_long_novel(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → generate outline → generate chapters (long novel)."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_long_novel"]
@@ -1162,12 +1156,9 @@ def workflow_generate_long_novel(self, task_id: str, user_id: str, input_params:
 
 @celery_app.task(
     name="workflow_generate_lyrics",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_lyrics(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_lyrics(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search reference novels → generate lyrics."""
     steps = _WORKFLOWS["generate_lyrics"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1175,12 +1166,9 @@ def workflow_generate_lyrics(self, task_id: str, user_id: str, input_params: dic
 
 @celery_app.task(
     name="workflow_generate_song",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_song(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_song(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate lyrics → generate song."""
     steps = _WORKFLOWS["generate_song"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1188,12 +1176,9 @@ def workflow_generate_song(self, task_id: str, user_id: str, input_params: dict)
 
 @celery_app.task(
     name="workflow_generate_video",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_video(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_video(task_id: str, user_id: str, input_params: dict) -> dict:
     """Full pipeline: search refs → novel → script → lyrics → song → image → video."""
     steps = _WORKFLOWS["generate_video"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1201,12 +1186,9 @@ def workflow_generate_video(self, task_id: str, user_id: str, input_params: dict
 
 @celery_app.task(
     name="workflow_generate_novel_tweet",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_novel_tweet(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_novel_tweet(task_id: str, user_id: str, input_params: dict) -> dict:
     """Step: generate novel → generate novel_tweet."""
     steps = _WORKFLOWS["generate_novel_tweet"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1214,12 +1196,9 @@ def workflow_generate_novel_tweet(self, task_id: str, user_id: str, input_params
 
 @celery_app.task(
     name="workflow_generate_video_tweet",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_video_tweet(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_video_tweet(task_id: str, user_id: str, input_params: dict) -> dict:
     """Step: generate novel_tweet → generate video_tweet."""
     steps = _WORKFLOWS["generate_video_tweet"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1227,12 +1206,9 @@ def workflow_generate_video_tweet(self, task_id: str, user_id: str, input_params
 
 @celery_app.task(
     name="workflow_generate_storyboard",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_storyboard(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_storyboard(task_id: str, user_id: str, input_params: dict) -> dict:
     """Step: generate video_tweet → generate storyboard."""
     steps = _WORKFLOWS["generate_storyboard"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1240,12 +1216,9 @@ def workflow_generate_storyboard(self, task_id: str, user_id: str, input_params:
 
 @celery_app.task(
     name="workflow_generate_script",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_script(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_script(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate novel → generate script."""
     steps = _WORKFLOWS["generate_script"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1253,12 +1226,9 @@ def workflow_generate_script(self, task_id: str, user_id: str, input_params: dic
 
 @celery_app.task(
     name="workflow_generate_image",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_image(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_image(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate song → generate image."""
     steps = _WORKFLOWS["generate_image"]
     return _run_workflow(task_id, user_id, steps, input_params)
@@ -1266,12 +1236,9 @@ def workflow_generate_image(self, task_id: str, user_id: str, input_params: dict
 
 @celery_app.task(
     name="workflow_generate_outline_only",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_outline_only(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_outline_only(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → generate outline only."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_outline_only"]
@@ -1280,12 +1247,9 @@ def workflow_generate_outline_only(self, task_id: str, user_id: str, input_param
 
 @celery_app.task(
     name="workflow_generate_novel_with_outline",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_novel_with_outline(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_novel_with_outline(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → generate novel (outline in input_params)."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_novel_with_outline"]
@@ -1294,12 +1258,9 @@ def workflow_generate_novel_with_outline(self, task_id: str, user_id: str, input
 
 @celery_app.task(
     name="workflow_generate_volume_outline_only",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_volume_outline_only(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_volume_outline_only(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → generate outline → generate volume outline."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_volume_outline_only"]
@@ -1308,12 +1269,9 @@ def workflow_generate_volume_outline_only(self, task_id: str, user_id: str, inpu
 
 @celery_app.task(
     name="workflow_generate_novel_with_volume_outline",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_novel_with_volume_outline(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_novel_with_volume_outline(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → generate outline → generate volume outline → generate novel."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_novel_with_volume_outline"]
@@ -1322,12 +1280,9 @@ def workflow_generate_novel_with_volume_outline(self, task_id: str, user_id: str
 
 @celery_app.task(
     name="workflow_generate_character_rules_only",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_character_rules_only(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_character_rules_only(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → outline → volume outline → character rules."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_character_rules_only"]
@@ -1336,12 +1291,9 @@ def workflow_generate_character_rules_only(self, task_id: str, user_id: str, inp
 
 @celery_app.task(
     name="workflow_generate_novel_with_character_rules",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=30,
     acks_late=True,
 )
-def workflow_generate_novel_with_character_rules(self, task_id: str, user_id: str, input_params: dict) -> dict:
+def workflow_generate_novel_with_character_rules(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search references → outline → volume outline → character rules → generate novel."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_novel_with_character_rules"]

@@ -28,6 +28,9 @@ save_fixes.py
 test_chapter_api.py
 vol1_stats.py
 vol2_retro.py
+# root-level one-off scripts (not part of the app package)
+/[a-z]*_*.py
+/vol?_*.py
 
 # generated novel content & debug artifacts
 client/*.txt

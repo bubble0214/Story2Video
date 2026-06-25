@@ -2,6 +2,7 @@ import type { SearchResultItem } from './novel';
 
 // ── Novel-specific step data ──
 export interface NovelDraftStepData {
+  schema_version?: number;
   keywords?: string;
   customPrompt?: string;
   genModel?: string;

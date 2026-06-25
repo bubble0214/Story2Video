@@ -24,7 +24,7 @@ class DraftRepository:
             user_id=user_id,
             title=title,
             workflow_type=workflow_type,
-            step_data={},
+            step_data={"schema_version": 1},
         )
         self._session.add(obj)
         await self._session.commit()

@@ -78,6 +78,7 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
   // ^ placeholder — we'll override below after draft is available
 
   const collectStepData = useCallback(() => ({
+    schema_version: 1,
     keywords,
     customPrompt,
     genModel,

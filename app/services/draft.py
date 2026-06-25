@@ -20,6 +20,8 @@ from app.services.volume_review import (
 )
 from app.utils.llm_key import resolve_user_llm_key
 
+SCHEMA_VERSION = 1
+
 
 class DraftService:
     """Service layer for draft management."""
@@ -232,8 +234,8 @@ class DraftService:
                     heading_match = re.search(r"^#+\s+(.+)$", chapter_text, re.MULTILINE)
                     if heading_match:
                         chapter_title = heading_match.group(1).strip()
-            except (json.JSONDecodeError, Exception):
-                pass
+            except json.JSONDecodeError:
+                logger.warning("Quality check JSON parse failed, skipping auto-rewrite")
 
         new_chapter = {"title": chapter_title, "content": chapter_text}
         # Always append new chapter (regeneration is no longer supported)
@@ -402,6 +404,7 @@ class DraftService:
             raise ValueError("Draft does not belong to this user")
 
         sd = draft.step_data or {}
+        sd.setdefault("schema_version", SCHEMA_VERSION)
         chapters = sd.get("chapters", [])
         total_chapters = sd.get("totalChapters", 30)
         custom_prompt = sd.get("customPrompt", "")
@@ -622,8 +625,8 @@ class DraftService:
                     heading_match = re.search(r"^#+\s+(.+)$", chapter_text, re.MULTILINE)
                     if heading_match:
                         chapter_title = heading_match.group(1).strip()
-            except (json.JSONDecodeError, Exception):
-                pass
+            except json.JSONDecodeError:
+                logger.warning("Volume review quality check JSON parse failed, skipping auto-rewrite")
 
         new_chapter = {"title": chapter_title, "content": chapter_text}
         updated_chapters = chapters + [new_chapter]
@@ -767,6 +770,7 @@ class DraftService:
             raise ValueError("Draft does not belong to this user")
 
         sd = draft.step_data or {}
+        sd.setdefault("schema_version", SCHEMA_VERSION)
         chapters = list(sd.get("chapters", []))
 
         # Apply revisions if requested

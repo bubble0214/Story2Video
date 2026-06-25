@@ -19,6 +19,15 @@ client/.next/
 _list_users.py
 run_api.py
 tmp_*.py
+extract_chs.py
+fetch_draft.py
+fix_chapters.py
+fix_vol2_headings.py
+generate_vol2.py
+save_fixes.py
+test_chapter_api.py
+vol1_stats.py
+vol2_retro.py
 
 # generated novel content & debug artifacts
 client/*.txt

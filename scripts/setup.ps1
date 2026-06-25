@@ -6,7 +6,7 @@
 .DESCRIPTION
   在 Windows 上一行命令完成 Story2Video 完整部署。
   自动检查/安装: Docker Desktop, Python, Node.js, Git
-  自动生成 .env 随机密钥、启动数据库、初始化表、安装 pip/npm 依赖、启动前后端服务。
+  自动生成 .env 随机密钥、启动数据库、alembic 迁移、安装 pip/npm 依赖、启动前后端服务。
 
   用法（管理员 PowerShell）:
     .\scripts\setup.ps1
@@ -15,7 +15,8 @@
 #Requires -RunAsAdministrator
 
 # ── 配置 ──────────────────────────────────────────────────
-$PROJECT_URL       = "https://github.com/bubble0214/Story2Video.git"
+$API_PORT      = 8005
+$FRONTEND_PORT = 3000
 
 # ── 颜色输出 ──────────────────────────────────────────────
 function Write-Info($msg)  { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
@@ -25,6 +26,11 @@ function Write-Err($msg)   { Write-Host "[ERR ] $msg" -ForegroundColor Red }
 
 function Test-Command($name) {
     return $null -ne (Get-Command $name -ErrorAction SilentlyContinue)
+}
+
+# 刷新 PATH（Chocolatey 安装后 Machine PATH 可能未在当前 session 生效）
+function Refresh-Path {
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
 }
 
 # ═══════════════════════════════════════════════════════════
@@ -57,7 +63,7 @@ if (Test-Command "choco") {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         $chocoInstall = (New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')
         iex $chocoInstall
-        $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+        Refresh-Path
         Import-Module "$env:ProgramData\chocolatey\helpers\chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         $chocoVer = choco --version 2>$null
         Write-Ok "Chocolatey 安装完成: $chocoVer"
@@ -82,7 +88,7 @@ if (Test-Command "git") {
     Write-Info "安装 Git ..."
     try {
         choco install git -y | Out-Null
-        $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+        Refresh-Path
         Write-Ok "Git 安装完成。"
     } catch {
         Write-Err "Git 安装失败: $_"
@@ -97,7 +103,7 @@ if (Test-Command "python") {
     Write-Info "安装 Python ..."
     try {
         choco install python -y | Out-Null
-        $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+        Refresh-Path
         $pyVer = python --version 2>&1
         Write-Ok "Python $pyVer 安装完成。"
     } catch {
@@ -113,7 +119,7 @@ if (Test-Command "node") {
     Write-Info "安装 Node.js LTS ..."
     try {
         choco install nodejs-lts -y | Out-Null
-        $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+        Refresh-Path
         $nodeVer = node --version 2>&1
         Write-Ok "Node.js $nodeVer 安装完成。npm: $(npm --version 2>&1)"
     } catch {
@@ -129,7 +135,7 @@ if (Test-Command "docker") {
     Write-Warn "Docker Desktop 未安装。正在安装（可能需要确认 UAC）..."
     try {
         choco install docker-desktop -y | Out-Null
-        $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+        Refresh-Path
         Write-Ok "Docker Desktop 安装完成。"
     } catch {
         Write-Err "Docker Desktop 安装失败: $_"
@@ -158,10 +164,10 @@ if (-not $allOk) {
 Write-Ok "项目结构验证通过。"
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 4：生成 .env
+# 阶段 4：生成 .env + client/.env.local
 # ═══════════════════════════════════════════════════════════
 Write-Host ""
-Write-Host "--- [4/9] 生成 .env 配置文件 ----------------" -ForegroundColor Yellow
+Write-Host "--- [4/9] 生成配置文件 ---------------------" -ForegroundColor Yellow
 
 $envFile = Join-Path $projectRoot ".env"
 $envExample = Join-Path $projectRoot ".env.example"
@@ -174,12 +180,10 @@ if (-not (Test-Path $envFile)) {
     Copy-Item $envExample $envFile
 
     function New-RandomString($length) {
+        $bytes = [byte[]]::new($length)
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
         $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        $result = ""
-        for ($i = 0; $i -lt $length; $i++) {
-            $result += $chars[(Get-Random -Maximum $chars.Length)]
-        }
-        return $result
+        return ($bytes | ForEach-Object { $chars[$_ % $chars.Length] }) -join ''
     }
     function New-HexString($length) {
         $bytes = [byte[]]::new($length)
@@ -205,8 +209,17 @@ if (-not (Test-Path $envFile)) {
     Write-Ok ".env 已存在，跳过。"
 }
 
+# 生成前端环境变量
+$clientEnvLocal = Join-Path $projectRoot "client\.env.local"
+if (-not (Test-Path $clientEnvLocal)) {
+    Set-Content $clientEnvLocal "NEXT_PUBLIC_API_BASE_URL=http://localhost:$API_PORT/api" -NoNewline
+    Write-Ok "client/.env.local 已生成。"
+} else {
+    Write-Ok "client/.env.local 已存在，跳过。"
+}
+
 # ═══════════════════════════════════════════════════════════
-# 阶段 5：启动 Docker
+# 阶段 5：启动 Docker (PostgreSQL + Redis)
 # ═══════════════════════════════════════════════════════════
 Write-Host ""
 Write-Host "--- [5/9] 启动 PostgreSQL + Redis ----------" -ForegroundColor Yellow
@@ -219,7 +232,7 @@ if (-not (Test-Command "docker")) {
 # 等待 Docker 守护进程
 $dockerReady = $false
 for ($i = 0; $i -lt 30; $i++) {
-    $result = docker info 2>&1 | Out-Null
+    $null = docker info 2>&1
     if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
     Write-Host "  等待 Docker 守护进程启动 ..."
     Start-Sleep 2
@@ -242,7 +255,7 @@ Write-Ok "PostgreSQL & Redis 已启动。"
 Write-Info "等待 PostgreSQL 就绪 ..."
 $pgReady = $false
 for ($i = 0; $i -lt 20; $i++) {
-    docker compose exec -T postgres pg_isready -U story2video 2>&1 | Out-Null
+    $null = docker compose exec -T postgres pg_isready -U story2video 2>&1
     if ($LASTEXITCODE -eq 0) { $pgReady = $true; break }
     Start-Sleep 2
 }
@@ -251,20 +264,6 @@ if (-not $pgReady) {
     exit 1
 }
 Write-Ok "PostgreSQL 就绪。"
-
-# 初始化数据库
-Write-Info "初始化数据库表 ..."
-$initSql = Join-Path $scriptDir "init-db.sql"
-if (Test-Path $initSql) {
-    Get-Content $initSql | docker compose exec -T postgres psql -U story2video 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Ok "数据库表初始化完成。"
-    } else {
-        Write-Warn "建表可能已存在（首次运行正常现象）。"
-    }
-} else {
-    Write-Warn "未找到 init-db.sql，跳过数据库初始化。"
-}
 
 # ═══════════════════════════════════════════════════════════
 # 阶段 6：安装 Python 依赖
@@ -287,17 +286,31 @@ if (-not (Test-Path $venvPath)) {
 
 Write-Info "安装 pip 依赖 ..."
 & $pipExe install -r (Join-Path $projectRoot "requirements.txt") --quiet 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Write-Ok "Python 依赖安装完成。"
-} else {
-    Write-Warn "部分依赖安装可能出错，请检查 pip 日志。"
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "Python 依赖安装失败，请检查 requirements.txt。"
+    exit 1
 }
+Write-Ok "Python 依赖安装完成。"
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 7：安装前端依赖
+# 阶段 7：运行数据库迁移 (alembic upgrade head)
 # ═══════════════════════════════════════════════════════════
 Write-Host ""
-Write-Host "--- [7/9] 安装前端依赖 ---------------------" -ForegroundColor Yellow
+Write-Host "--- [7/9] 运行数据库迁移 -------------------" -ForegroundColor Yellow
+
+Write-Info "执行 alembic upgrade head ..."
+& $pythonExe -m alembic upgrade head
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "数据库迁移失败，请检查 .env 中的数据库连接配置。"
+    exit 1
+}
+Write-Ok "数据库迁移完成（所有表和索引已就绪）。"
+
+# ═══════════════════════════════════════════════════════════
+# 阶段 8：安装前端依赖
+# ═══════════════════════════════════════════════════════════
+Write-Host ""
+Write-Host "--- [8/9] 安装前端依赖 ---------------------" -ForegroundColor Yellow
 
 $clientDir = Join-Path $projectRoot "client"
 $nodeModules = Join-Path $clientDir "node_modules"
@@ -306,37 +319,48 @@ if (-not (Test-Path $nodeModules)) {
     Write-Info "安装 npm 依赖 ..."
     Push-Location $clientDir
     npm install --legacy-peer-deps 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Ok "npm 依赖安装完成。"
-    } else {
-        Write-Warn "npm install 可能出错，请检查日志。"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "npm install 失败，请检查网络或 Node.js 版本。"
+        Pop-Location
+        exit 1
     }
     Pop-Location
+    Write-Ok "npm 依赖安装完成。"
 } else {
     Write-Ok "node_modules 已存在，跳过。"
 }
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 8：启动服务
+# 阶段 9：启动服务
 # ═══════════════════════════════════════════════════════════
 Write-Host ""
-Write-Host "--- [8/9] 启动服务 -------------------------" -ForegroundColor Yellow
+Write-Host "--- [9/9] 启动服务 -------------------------" -ForegroundColor Yellow
 
-# 停止旧进程
-Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "run_api" } | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "next dev" } | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep 1
+# 停止占用端口的旧进程
+$oldApi = Get-NetTCPConnection -LocalPort $API_PORT -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($oldApi) {
+    Write-Info "停止旧的后端进程 (PID $($oldApi.OwningProcess)) ..."
+    Stop-Process -Id $oldApi.OwningProcess -Force -ErrorAction SilentlyContinue
+    Start-Sleep 1
+}
+
+$oldFront = Get-NetTCPConnection -LocalPort $FRONTEND_PORT -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($oldFront) {
+    Write-Info "停止旧的前端进程 (PID $($oldFront.OwningProcess)) ..."
+    Stop-Process -Id $oldFront.OwningProcess -Force -ErrorAction SilentlyContinue
+    Start-Sleep 1
+}
 
 # 启动后端 API
-Write-Info "启动后端 API (http://localhost:8005) ..."
-Start-Process -NoNewWindow -WindowStyle Hidden -FilePath $pythonExe -ArgumentList "run_api.py" -WorkingDirectory $projectRoot
-Start-Sleep 2
+Write-Info "启动后端 API (http://localhost:$API_PORT) ..."
+Start-Process -FilePath $pythonExe -ArgumentList "run_api.py" -WorkingDirectory $projectRoot
+Start-Sleep 3
 
 # 验证 API
 $apiUp = $false
 for ($i = 0; $i -lt 10; $i++) {
     try {
-        $req = Invoke-WebRequest -Uri "http://localhost:8005/docs" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        $req = Invoke-WebRequest -Uri "http://localhost:$API_PORT/docs" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
         if ($req.StatusCode -eq 200) { $apiUp = $true; break }
     } catch {
         # ignore, retry
@@ -346,32 +370,30 @@ for ($i = 0; $i -lt 10; $i++) {
 if ($apiUp) {
     Write-Ok "后端 API 已启动。"
 } else {
-    Write-Warn "后端 API 启动可能较慢，请稍后访问 http://localhost:8005/docs 确认。"
+    Write-Warn "后端 API 启动可能较慢，请稍后访问 http://localhost:$API_PORT/docs 确认。"
 }
 
 # 启动前端
-Write-Info "启动前端 (http://localhost:3000) ..."
-Push-Location $clientDir
+Write-Info "启动前端 (http://localhost:$FRONTEND_PORT) ..."
 $npmExe = (Get-Command "npm").Source
-Start-Process -NoNewWindow -WindowStyle Hidden -FilePath $npmExe -ArgumentList "run dev" -WorkingDirectory $clientDir
-Pop-Location
+Start-Process -FilePath $npmExe -ArgumentList "run dev" -WorkingDirectory $clientDir
 
 Write-Ok "前端已启动。"
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 9：输出信息
+# 输出信息
 # ═══════════════════════════════════════════════════════════
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Green
 Write-Host "  Story2Video 部署完成！" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  前端地址：http://localhost:3000" -ForegroundColor Cyan
-Write-Host "  后端 API：http://localhost:8005" -ForegroundColor Cyan
-Write-Host "  API 文档：http://localhost:8005/docs" -ForegroundColor Cyan
+Write-Host "  前端地址：http://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
+Write-Host "  后端 API：http://localhost:$API_PORT" -ForegroundColor Cyan
+Write-Host "  API 文档：http://localhost:$API_PORT/docs" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  首次使用：" -ForegroundColor White
-Write-Host "    1. 浏览器打开 http://localhost:3000" -ForegroundColor White
+Write-Host "    1. 浏览器打开 http://localhost:$FRONTEND_PORT" -ForegroundColor White
 Write-Host "    2. 注册账号" -ForegroundColor White
 Write-Host "    3. 进入 设置 页面配置 LLM API Key" -ForegroundColor White
 Write-Host ""

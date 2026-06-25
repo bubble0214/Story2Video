@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Story2Video 一键部署脚本 (PowerShell)
   自动安装依赖 → 生成配置 → 启动服务

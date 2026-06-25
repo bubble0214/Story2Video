@@ -143,90 +143,6 @@ async def _step_search_references(
     return {"references": references}
 
 
-async def _step_generate_novel(
-    input_params: dict, context: dict, user_id: UUID | None = None,
-) -> dict:
-    """Generate a novel via the LLM provider."""
-    # If novel_content is already provided (e.g. from script workflow), pass through
-    existing = input_params.get("novel_content", "")
-    if existing:
-        title = None
-        for line in existing.split("\n"):
-            line = line.strip()
-            if line.startswith("# ") or line.startswith("## "):
-                title = line.lstrip("# ").strip()
-                break
-        if not title:
-            title = input_params.get("custom_prompt", "Untitled").split("\n")[0][:60]
-        return {"novel_content": existing, "title": title}
-    if user_id is None:
-        raise ValueError("User ID required to resolve LLM API key")
-
-    custom_prompt = input_params.get("custom_prompt")
-    refs = context.get("references", [])
-
-    if custom_prompt:
-        # User-provided prompt mode: use custom instructions + references
-        parts = [f"# Instructions\n{custom_prompt}"]
-        if refs:
-            ref_text = "\n".join(
-                f"- {r['title']} (by {r.get('author', 'unknown')}): {r['summary'][:500]}"
-                for r in refs
-            )
-            parts.append(f"# Reference Novels\n{ref_text}")
-        # If a volume outline was generated, use it (more detailed)
-        volume_outline = input_params.get("volume_outline_text") or context.get("volume_outline_text", "")
-        if volume_outline.strip():
-            parts.append(f"# Novel Outline (Volume Detail)\n{volume_outline.strip()}")
-            parts.append("Write the novel following the volume outline above. Each chapter should be clearly separated with markdown headings. Write all 30 chapters of Volume 1.")
-        else:
-            # Fall back to the general outline
-            outline_text = input_params.get("outline_text") or context.get("outline_text", "")
-            if outline_text.strip():
-                parts.append(f"# Novel Outline\n{outline_text.strip()}")
-                parts.append("Write the novel following the outline above. Each chapter should be clearly separated with markdown headings.")
-        # If character behavior rules were generated, append them as constraints
-        character_rules = input_params.get("character_rules_text") or context.get("character_rules_text", "")
-        if character_rules.strip():
-            parts.append(f"# Character Behavior Rules (must follow strictly)\n{character_rules.strip()}")
-            parts.append("IMPORTANT: Every character's dialogue, decisions, and reactions MUST be consistent with their established behavior rules above. Do not deviate from these rules.")
-        parts.append("\nPlease write the complete novel in markdown format based on the instructions above. The novel should be original and creative, drawing inspiration from the reference novels.")  # noqa: E501
-        messages = [
-            {"role": "system", "content": "You are a professional novelist. Write an original, compelling story based on the user's instructions and reference materials."},
-            {"role": "user", "content": "\n\n".join(parts)},
-        ]
-    else:
-        builder = NovelPromptBuilder()
-        messages = builder.build(
-            title=input_params.get("title", "Untitled"),
-            tags=input_params.get("tags", ""),
-            outline=input_params.get("outline", ""),
-            style=input_params.get("style", ""),
-            word_count=input_params.get("word_count", 2000),
-        )
-        if refs:
-            ref_text = "\n\nReference novels:\n" + "\n".join(
-                f"- {r['title']}: {r['summary'][:300]}" for r in refs
-            )
-            messages[1]["content"] += ref_text
-
-    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
-    if llm_provider == "custom":
-        llm_provider = "openai"
-    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
-    content = await provider.chat(messages)
-    # Extract a title from the first heading or fall back to input
-    title = None
-    for line in content.split("\n"):
-        line = line.strip()
-        if line.startswith("# ") or line.startswith("## "):
-            title = line.lstrip("# ").strip()
-            break
-    if not title:
-        title = input_params.get("custom_prompt", "Untitled").split("\n")[0][:60]
-    return {"novel_content": content, "title": title}
-
-
 async def _step_generate_outline(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
@@ -374,219 +290,6 @@ async def _step_generate_character_rules(
     content = await provider.chat(messages)
 
     return {"character_rules_text": content.strip()}
-
-
-async def _step_generate_novel_by_chapters(
-    input_params: dict, context: dict, user_id: UUID | None = None,
-) -> dict:
-    """Generate novel chapter by chapter, using per-chapter prompt template."""
-    if user_id is None:
-        raise ValueError("User ID required to resolve LLM API key")
-
-    custom_prompt = context.get("custom_prompt", "")
-    refs = context.get("references", [])
-    volume_outline = context.get("volume_outline_text", "")
-    character_rules = context.get("character_rules_text", "")
-
-    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
-    if llm_provider == "custom":
-        llm_provider = "openai"
-    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
-
-    all_chapters: list[str] = []
-    total_chapters = 30
-
-    for chapter_num in range(1, total_chapters + 1):
-        messages = build_chapter_messages(
-            custom_prompt=custom_prompt,
-            references=refs,
-            volume_outline=volume_outline,
-            character_rules=character_rules,
-            chapter_num=chapter_num,
-        )
-
-        chapter_text = (await provider.chat(messages)).strip()
-
-        # ── Self-review: check quality and fix if needed ──
-        review_prompt = (
-            f"通读刚生成的第{chapter_num}章，检查：\n"
-            f"1. 是否完成了所有「必须达成的任务」？\n"
-            f"2. 结尾钩子力度够不够？\n"
-            f"3. 主角的言行是否符合人设硬约束？\n"
-            f"如有不合格项，请针对性修改。\n\n"
-            f"如果合格，请回复「【本章合格】」并输出原文。\n"
-            f"如果不合格，请回复「【修改版本】」并输出修改后的完整章节。"
-        )
-
-        review_messages = [
-            {"role": "system", "content": "你是一名严格的小说编辑，负责检查章节质量。请仔细检查并按要求输出。"},
-            {"role": "user", "content": f"以下是第{chapter_num}章正文：\n\n{chapter_text}\n\n{review_prompt}"},
-        ]
-
-        reviewed = (await provider.chat(review_messages)).strip()
-
-        # Extract the final chapter text from review response
-        if "【修改版本】" in reviewed:
-            final_chapter = reviewed.split("【修改版本】")[-1].strip()
-        elif "【本章合格】" in reviewed:
-            final_chapter = reviewed.split("【本章合格】")[-1].strip()
-        else:
-            final_chapter = reviewed
-
-        all_chapters.append(final_chapter)
-
-        # ── Periodic batch review (every 10 chapters) ──
-        if chapter_num == 10 or chapter_num == 20:
-            accumulated = "\n\n".join(all_chapters)
-            batch_prompt = (
-                f"请阅读已完成的第1-{chapter_num}章正文，做以下检查：\n"
-                f"1. **时间线**：所有事件发生的先后顺序有无矛盾？列出时间轴。\n"
-                f"2. **人物轨迹**：主角目前手握几条线索？各推进到什么程度？有无遗漏的伏笔？\n"
-                f"3. **能力系统**：主角能力的强弱表现是否前后一致？如有波动，请指出并给出修改建议。\n"
-                f"4. **节奏报告**：用★标出{chapter_num}章中的情绪高点，用—标出拖沓段落，给出后续章节的节奏调整建议。\n\n"
-                f"【修改要求】如果发现某章节需要修改，请用【第X章修改】作为标记（X为章节数字），"
-                f"然后输出该章的完整修改版本。无需修改的章节不要输出。"
-            )
-            batch_messages = [
-                {"role": "system", "content": "你是一名资深小说编辑，负责阶段性复盘检查。严格按检查项逐一分析，按格式输出修改。"},
-                {"role": "user", "content": f"已完成章节（第1-{chapter_num}章）：\n\n{accumulated}\n\n{batch_prompt}"},
-            ]
-            review_report = (await provider.chat(batch_messages)).strip()
-
-            # Parse and apply chapter revisions
-            for match in re.finditer(r"【第(\d+)章修改】", review_report):
-                ch_idx = int(match.group(1)) - 1  # 0-indexed
-                start = match.end()
-                next_marker = re.search(r"【第\d+章修改】", review_report[start:])
-                revised = (
-                    review_report[start:start + next_marker.start()].strip()
-                    if next_marker else review_report[start:].strip()
-                )
-                if 0 <= ch_idx < len(all_chapters) and revised:
-                    all_chapters[ch_idx] = revised
-
-
-    # ── Final review (chapter 30) ──
-    accumulated_30 = "\n\n".join(all_chapters)
-    final_review_prompt = (
-        f"请通读已完成的所有30章正文，做最终检查：\n"
-        f"1. **时间线**：列出第1-30章的时间轴，检查有无矛盾。\n"
-        f"2. **人物轨迹**：所有线索是否收束或为下一卷做好准备？\n"
-        f"3. **能力系统**：主角能力成长曲线是否平滑合理？\n"
-        f"4. **节奏报告**：用★标出全书情绪高点，用—标出拖沓段落。\n\n"
-        f"【修改要求】如果发现某章节需要修改，请用【第X章修改】作为标记，输出完整修改版本。"
-    )
-    final_batch_messages = [
-        {"role": "system", "content": "你是一名资深小说编辑，负责全书最终检查。"},
-        {"role": "user", "content": f"已完成全部30章：\n\n{accumulated_30}\n\n{final_review_prompt}"},
-    ]
-    final_report = (await provider.chat(final_batch_messages)).strip()
-
-    for match in re.finditer(r"【第(\d+)章修改】", final_report):
-        ch_idx = int(match.group(1)) - 1
-        start = match.end()
-        next_marker = re.search(r"【第\d+章修改】", final_report[start:])
-        revised = (
-            final_report[start:start + next_marker.start()].strip()
-            if next_marker else final_report[start:].strip()
-        )
-        if 0 <= ch_idx < len(all_chapters) and revised:
-            all_chapters[ch_idx] = revised
-
-    # ── Story state analysis & next-steps decision ──
-    novel_so_far = "\n\n".join(all_chapters)
-    decision_prompt = (
-        "请阅读以上已完成的第一卷正文，分析当前故事状态并决定下一步：\n\n"
-        "1. **写得顺手，伏笔还有空间**：故事推进顺利，埋下的伏笔尚未全部回收，"
-        "有明显可以延续到第二卷的线索。→ 生成第二卷细纲，继续写作。\n"
-        "2. **发现一些问题需要调整**：时间线/人物/能力/节奏存在需要修改的问题。"
-        "→ 修改已有章节后再继续。（注意：如果前面已修改过，请确保修改到位）\n"
-        "3. **故事可以收束了**：主线冲突已经或即将解决，继续写会导致注水。"
-        "→ 直接写结局收束。\n\n"
-        "请先简要分析故事状态，然后输出决策结果：\n"
-        "如果选1，请回复【决策：续写第二卷】\n"
-        "如果选2，请回复【决策：修改后继续】\n"
-        "如果选3，请回复【决策：收束结局】\n\n"
-        "注意：一部完整的网络小说通常在100章以上，如果当前只完成了30章，"
-        "且故事明显还有大量可写内容，请优先选择选项1。"
-    )
-    decision_messages = [
-        {"role": "system", "content": "你是一名资深小说主编，负责根据已完成内容规划后续创作方向。"},
-        {"role": "user", "content": f"已完成的第一卷正文：\n\n{novel_so_far}\n\n{decision_prompt}"},
-    ]
-    decision = (await provider.chat(decision_messages)).strip()
-
-    # Execute the decision
-    if "续写第二卷" in decision:
-        # Generate volume 2 outline first
-        v2_outline_prompt = (
-            "你已经完成了第一卷（30章）的创作。现在请规划第二卷的章节细纲。\n\n"
-            f"【第一卷已有内容概要】\n{novel_so_far[:3000]}\n\n"
-            "请基于第一卷已展开的线索、未回收的伏笔、人物的成长空间，规划第二卷（10章）的细纲。"
-            "每章需包含：一句话梗概、情绪基调、核心冲突、伏笔植入、结尾钩子。\n\n"
-            "请按以下格式输出：\n"
-            "第31章：[梗概] | [情绪基调] | [核心冲突] | [伏笔] | [钩子]\n"
-            "第32章：...\n"
-            "（以此类推到第40章）"
-        )
-        v2_messages = [
-            {"role": "system", "content": "你是一名资深小说大纲设计师，擅长规划长篇故事的续作结构。"},
-            {"role": "user", "content": v2_outline_prompt},
-        ]
-        v2_outline = (await provider.chat(v2_messages)).strip()
-        all_chapters.append(f"\n\n## 第二卷\n\n（第二卷细纲：\n{v2_outline}\n）\n")
-
-        # Write up to 10 chapters for volume 2
-        v2_chapter_count = 10
-        for v2_chapter_num in range(31, 31 + v2_chapter_count):
-            v2_messages = build_chapter_messages(
-                custom_prompt=custom_prompt,
-                references=refs,
-                volume_outline=volume_outline or v2_outline,
-                character_rules=character_rules,
-                chapter_num=v2_chapter_num,
-                volume_label="第二卷",
-            )
-            v2_text = (await provider.chat(v2_messages)).strip()
-            all_chapters.append(v2_text)
-
-    elif "收束结局" in decision:
-        # Write a closing arc (5 chapters)
-        closing_notes = (
-            "根据分析，故事已进入收束阶段。请写出第31-35章作为结局卷：\n"
-            "- 第31章：最终冲突升级，所有线索汇聚\n"
-            "- 第32章：高潮对决/关键转折\n"
-            "- 第33章：余波与角色成长\n"
-            "- 第34章：伏笔回收与主题升华\n"
-            "- 第35章：结局尾声\n\n"
-            "每章1800-2000字，保持前后一致。"
-        )
-        for closing_num in range(31, 36):
-            closing_messages = build_chapter_messages(
-                custom_prompt=custom_prompt,
-                references=refs,
-                volume_outline=volume_outline,
-                character_rules=character_rules,
-                chapter_num=closing_num,
-                volume_label="结局卷",
-            )
-            closing_text = (await provider.chat(closing_messages)).strip()
-            all_chapters.append(closing_text)
-    # else (option 2: 修改后继续): fixes already applied above, just proceed
-
-    novel = "\n\n".join(all_chapters)
-
-    # Extract a title from the first chapter heading if possible
-    title = None
-    for line in novel.split("\n"):
-        line = line.strip()
-        if line.startswith("# ") or line.startswith("## "):
-            title = line.lstrip("# ").strip()
-            break
-    if not title:
-        title = custom_prompt.split("\n")[0][:60] if custom_prompt else "Untitled"
-
-    return {"novel_content": novel, "title": title}
 
 
 async def _step_generate_script(
@@ -853,7 +556,6 @@ async def _step_generate_video(input_params: dict, context: dict) -> dict:
 _STEP_REGISTRY = {
     "search_reference_novels": _step_search_references,
     "generate_novel": _step_generate_novel,
-    "generate_novel_by_chapters": _step_generate_novel_by_chapters,
     "generate_outline": _step_generate_outline,
     "generate_script": _step_generate_script,
     "generate_novel_tweet": _step_generate_novel_tweet,
@@ -868,7 +570,6 @@ _STEP_REGISTRY = {
 _STEP_WEIGHTS = {
     "search_reference_novels": 5.0,
     "generate_novel": 20.0,
-    "generate_novel_by_chapters": 50.0,
     "generate_outline": 10.0,
     "generate_volume_outline": 15.0,
     "generate_character_rules": 10.0,
@@ -885,13 +586,9 @@ _STEP_WEIGHTS = {
 # ── Workflow definitions ──────────────────────────────────────────────
 
 _WORKFLOWS: dict[str, list[str]] = {
-    "generate_novel": ["search_reference_novels", "generate_novel"],
     "generate_outline_only": ["search_reference_novels", "generate_outline"],
     "generate_volume_outline_only": ["search_reference_novels", "generate_outline", "generate_volume_outline"],
     "generate_character_rules_only": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_character_rules"],
-    "generate_novel_with_outline": ["search_reference_novels", "generate_novel"],
-    "generate_novel_with_volume_outline": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_novel"],
-    "generate_novel_with_character_rules": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_character_rules", "generate_novel_by_chapters"],
     "generate_script": ["generate_novel", "generate_novel_tweet", "generate_video_tweet", "generate_storyboard"],
     "generate_novel_tweet": ["generate_novel", "generate_novel_tweet"],
     "generate_video_tweet": ["generate_novel_tweet", "generate_video_tweet"],
@@ -1027,15 +724,6 @@ def _run_workflow(task_id: str, user_id: str, steps: list[str], input_params: di
 # ── Celery tasks ──────────────────────────────────────────────────────
 
 
-@celery_app.task(
-    name="workflow_generate_novel",
-    acks_late=True,
-)
-def workflow_generate_novel(task_id: str, user_id: str, input_params: dict) -> dict:
-    """Workflow: search reference novels → generate novel."""
-    steps = _WORKFLOWS["generate_novel"]
-    return _run_workflow(task_id, user_id, steps, input_params)
-
 
 @celery_app.task(
     name="workflow_generate_lyrics",
@@ -1129,17 +817,6 @@ def workflow_generate_outline_only(task_id: str, user_id: str, input_params: dic
 
 
 @celery_app.task(
-    name="workflow_generate_novel_with_outline",
-    acks_late=True,
-)
-def workflow_generate_novel_with_outline(task_id: str, user_id: str, input_params: dict) -> dict:
-    """Workflow: search references → generate novel (outline in input_params)."""
-    input_params["_task_id"] = task_id
-    steps = _WORKFLOWS["generate_novel_with_outline"]
-    return _run_workflow(task_id, user_id, steps, input_params)
-
-
-@celery_app.task(
     name="workflow_generate_volume_outline_only",
     acks_late=True,
 )
@@ -1151,17 +828,6 @@ def workflow_generate_volume_outline_only(task_id: str, user_id: str, input_para
 
 
 @celery_app.task(
-    name="workflow_generate_novel_with_volume_outline",
-    acks_late=True,
-)
-def workflow_generate_novel_with_volume_outline(task_id: str, user_id: str, input_params: dict) -> dict:
-    """Workflow: search references → generate outline → generate volume outline → generate novel."""
-    input_params["_task_id"] = task_id
-    steps = _WORKFLOWS["generate_novel_with_volume_outline"]
-    return _run_workflow(task_id, user_id, steps, input_params)
-
-
-@celery_app.task(
     name="workflow_generate_character_rules_only",
     acks_late=True,
 )
@@ -1169,15 +835,4 @@ def workflow_generate_character_rules_only(task_id: str, user_id: str, input_par
     """Workflow: search references → outline → volume outline → character rules."""
     input_params["_task_id"] = task_id
     steps = _WORKFLOWS["generate_character_rules_only"]
-    return _run_workflow(task_id, user_id, steps, input_params)
-
-
-@celery_app.task(
-    name="workflow_generate_novel_with_character_rules",
-    acks_late=True,
-)
-def workflow_generate_novel_with_character_rules(task_id: str, user_id: str, input_params: dict) -> dict:
-    """Workflow: search references → outline → volume outline → character rules → generate novel."""
-    input_params["_task_id"] = task_id
-    steps = _WORKFLOWS["generate_novel_with_character_rules"]
     return _run_workflow(task_id, user_id, steps, input_params)

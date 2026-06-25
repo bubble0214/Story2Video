@@ -56,7 +56,7 @@ export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
 
   setCurrentTaskId: (currentTaskId) => set({ currentTaskId }),
 
-  getWorkflowType: () => WORKFLOW_MODE_TO_TYPE[get().workflowMode],
+  getWorkflowType: () => WORKFLOW_MODE_TO_TYPE[get().workflowMode] ?? 'generate_script',
 
   reset: () => set(initialState),
 }));

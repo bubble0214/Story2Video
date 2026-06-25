@@ -114,7 +114,7 @@ export function WorkflowPage({
   const { data: assetNovelsData } = useQuery({
     queryKey: ['asset-novels'],
     queryFn: async () => {
-      const resp = await tasksApi.list({ workflow_type: 'generate_novel' as WorkflowType, limit: 50 });
+      const resp = await tasksApi.list({ workflow_type: undefined, limit: 50 });
       return resp.data;
     },
     enabled: workflowType === 'generate_script' && assetPopoverOpen,

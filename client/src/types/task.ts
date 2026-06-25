@@ -1,11 +1,7 @@
 export type WorkflowType =
-  | 'generate_novel'
   | 'generate_outline_only'
   | 'generate_volume_outline_only'
   | 'generate_character_rules_only'
-  | 'generate_novel_with_outline'
-  | 'generate_novel_with_volume_outline'
-  | 'generate_novel_with_character_rules'
   | 'generate_script'
   | 'generate_novel_tweet'
   | 'generate_video_tweet'

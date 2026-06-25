@@ -2,8 +2,7 @@ import type { WorkflowType } from './task';
 
 export type WorkflowMode = 'novel' | 'script' | 'lyrics' | 'song' | 'image' | 'video';
 
-export const WORKFLOW_MODE_TO_TYPE: Record<WorkflowMode, WorkflowType> = {
-  novel: 'generate_novel',
+export const WORKFLOW_MODE_TO_TYPE: Partial<Record<WorkflowMode, WorkflowType>> = {
   script: 'generate_script',
   lyrics: 'generate_lyrics',
   song: 'generate_song',

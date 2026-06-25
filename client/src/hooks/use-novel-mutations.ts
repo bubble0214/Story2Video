@@ -23,13 +23,11 @@ export function useNovelMutations({
   const setOutlineContent = useWorkflowStore((s) => s.setOutlineContent);
   const setVolumeOutlineContent = useWorkflowStore((s) => s.setVolumeOutlineContent);
   const setCharacterRulesContent = useWorkflowStore((s) => s.setCharacterRulesContent);
-  const setNovelContent = useWorkflowStore((s) => s.setNovelContent);
 
   // Polling task IDs
   const [outlinePollingTaskId, setOutlinePollingTaskId] = useState<string | null>(null);
   const [volumeOutlinePollingTaskId, setVolumeOutlinePollingTaskId] = useState<string | null>(null);
   const [characterRulesPollingTaskId, setCharacterRulesPollingTaskId] = useState<string | null>(null);
-  const [novelPollingTaskId, setNovelPollingTaskId] = useState<string | null>(null);
 
   // Outline mutation
   const outlineMutation = useMutation({
@@ -86,42 +84,10 @@ export function useNovelMutations({
     },
   });
 
-  // Batch novel mutation
-  const novelMutation = useMutation({
-    mutationFn: () => {
-      const useCharacterRules = characterRulesContent.trim().length > 0;
-      const useVolume = volumeOutlineContent.trim().length > 0;
-      return tasksApi.create({
-        workflow_type: useCharacterRules
-          ? 'generate_novel_with_character_rules'
-          : useVolume
-            ? 'generate_novel_with_volume_outline'
-            : 'generate_novel_with_outline',
-        input_params: {
-          ...inputParamsBase(),
-          ...(useCharacterRules
-            ? { character_rules_text: characterRulesContent, volume_outline_text: volumeOutlineContent }
-            : useVolume
-              ? { volume_outline_text: volumeOutlineContent }
-              : { outline_text: outlineContent }),
-        },
-      });
-    },
-    onSuccess: ({ data }) => {
-      setCurrentTaskId(data.id);
-      setNovelPollingTaskId(data.id);
-    },
-    onError: (err) => {
-      const e = err as { response?: { data?: { detail?: string } }; message?: string };
-      toast({ title: '小说生成失败', description: e.response?.data?.detail || e.message, variant: 'destructive' });
-    },
-  });
-
   // ── Polling queries ──
   const polledOutlineTask = useTaskPoll(outlinePollingTaskId!, !!outlinePollingTaskId);
   const polledVolumeOutlineTask = useTaskPoll(volumeOutlinePollingTaskId!, !!volumeOutlinePollingTaskId);
   const polledCharacterRulesTask = useTaskPoll(characterRulesPollingTaskId!, !!characterRulesPollingTaskId);
-  const polledNovelTask = useTaskPoll(novelPollingTaskId!, !!novelPollingTaskId);
 
   // ── Poll result handlers (called externally from useEffect in parent) ──
   const handleOutlineResult = useCallback((task: TaskResp) => {
@@ -190,55 +156,29 @@ export function useNovelMutations({
     return null;
   }, [setCharacterRulesContent, setCurrentTaskId, saveDraft]);
 
-  const handleNovelResult = useCallback((task: TaskResp) => {
-    if (!task) return;
-    if (task.status === 'SUCCESS') {
-      const result = task.result;
-      const novelContentVal = result?.novel_content as string | undefined;
-      if (novelContentVal) {
-        setNovelContent(novelContentVal);
-      }
-      setNovelPollingTaskId(null);
-      setCurrentTaskId(null);
-      toast({ title: '小说生成完成' });
-      saveDraft('generate', { novelContent: novelContentVal ?? '' }, true);
-      return 'generate';
-    } else if (task.status === 'FAILED') {
-      setNovelPollingTaskId(null);
-      toast({ title: '小说生成失败', description: task.error_message || '未知错误', variant: 'destructive' });
-    }
-    return null;
-  }, [setNovelContent, setCurrentTaskId, saveDraft]);
-
   const isOutlinePending = outlineMutation.isPending || !!outlinePollingTaskId;
   const isVolumeOutlinePending = volumeOutlineMutation.isPending || !!volumeOutlinePollingTaskId;
   const isCharacterRulesPending = characterRulesMutation.isPending || !!characterRulesPollingTaskId;
-  const isNovelPending = novelMutation.isPending || !!novelPollingTaskId;
 
   return {
     outlineMutation,
     volumeOutlineMutation,
     characterRulesMutation,
-    novelMutation,
 
     outlinePollingTaskId, setOutlinePollingTaskId,
     volumeOutlinePollingTaskId, setVolumeOutlinePollingTaskId,
     characterRulesPollingTaskId, setCharacterRulesPollingTaskId,
-    novelPollingTaskId, setNovelPollingTaskId,
 
     polledOutlineTask,
     polledVolumeOutlineTask,
     polledCharacterRulesTask,
-    polledNovelTask,
 
     handleOutlineResult,
     handleVolumeOutlineResult,
     handleCharacterRulesResult,
-    handleNovelResult,
 
     isOutlinePending,
     isVolumeOutlinePending,
     isCharacterRulesPending,
-    isNovelPending,
   };
 }

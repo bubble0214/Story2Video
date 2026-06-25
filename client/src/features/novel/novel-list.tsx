@@ -69,9 +69,9 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
     showFinalReviewSheet, setShowFinalReviewSheet,
     isSubmittingFinalDecision, applyFinalRevisions, setApplyFinalRevisions,
     handleGenerateChapter, applyQualityRevisions, submitDecision, submitFinalDecision,
-    outlineMutation, novelMutation, volumeOutlineMutation, characterRulesMutation,
-    isOutlinePending, isVolumeOutlinePending, isCharacterRulesPending, isNovelPending,
-    polledOutlineTask, polledVolumeOutlineTask, polledCharacterRulesTask, polledNovelTask,
+    outlineMutation, volumeOutlineMutation, characterRulesMutation,
+    isOutlinePending, isVolumeOutlinePending, isCharacterRulesPending,
+    polledOutlineTask, polledVolumeOutlineTask, polledCharacterRulesTask,
     analyzeMutation, applyTemplate,
   } = useNovelGeneration({ keywords, selectedModel, initialDraftId });
 
@@ -386,13 +386,6 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
               </Card>
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button variant="outline" onClick={() => setActiveTab('volume')}>返回细纲</Button>
-                <Button size="lg" onClick={() => novelMutation.mutate()} disabled={isNovelPending}>
-                  {isNovelPending ? (
-                    <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> 生成小说中...</>
-                  ) : (
-                    <><Sparkles className="h-5 w-5 mr-2" /> 确认守则并生成小说</>
-                  )}
-                </Button>
                 <Button variant="outline" size="lg" onClick={async () => {
                   await saveDraft('generate');
                   setGenerateMode('interactive');
@@ -820,9 +813,6 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
                     <h2 className="text-lg font-semibold tracking-tight">生成的小说</h2>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => setActiveTab('rules')}>返回守则</Button>
-                      {polledNovelTask.data && (
-                        <Button size="sm" onClick={() => router.push(`/task/${(polledNovelTask.data as any).id}`)}>查看结果</Button>
-                      )}
                     </div>
                   </div>
                   <Card>
@@ -834,26 +824,12 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
                       />
                     </CardContent>
                   </Card>
-                  {polledNovelTask.data && (
-                    <div className="flex justify-center">
-                      <Button onClick={() => router.push(`/task/${(polledNovelTask.data as any).id}`)}>查看完整结果</Button>
-                    </div>
-                  )}
                 </>
               ) : (
                 <div className="text-center py-12 space-y-4">
-                  {isNovelPending ? (
-                    <>
-                      <Loader2 className="h-12 w-12 mx-auto animate-spin text-muted-foreground/60" />
-                      <p className="text-muted-foreground">小说生成中，请稍候...</p>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                    <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground/40" />
                       <p className="text-muted-foreground">尚未生成小说。</p>
                       <Button variant="outline" onClick={() => setActiveTab('rules')}>前往守则确认</Button>
-                    </>
-                  )}
                 </div>
               )}
             </>

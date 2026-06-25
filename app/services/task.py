@@ -11,13 +11,9 @@ class TaskService:
     """Service layer for workflow task management."""
 
     WORKFLOW_MAP: dict[str, str] = {
-        "generate_novel": "workflow_generate_novel",
         "generate_outline_only": "workflow_generate_outline_only",
         "generate_volume_outline_only": "workflow_generate_volume_outline_only",
         "generate_character_rules_only": "workflow_generate_character_rules_only",
-        "generate_novel_with_outline": "workflow_generate_novel_with_outline",
-        "generate_novel_with_volume_outline": "workflow_generate_novel_with_volume_outline",
-        "generate_novel_with_character_rules": "workflow_generate_novel_with_character_rules",
         "generate_script": "workflow_generate_script",
         "generate_novel_tweet": "workflow_generate_novel_tweet",
         "generate_video_tweet": "workflow_generate_video_tweet",
@@ -59,13 +55,9 @@ class TaskService:
 
     def _queue_for_workflow(self, workflow_type: str) -> str:
         queue_map = {
-            "generate_novel": "novel_generation",
             "generate_outline_only": "novel_generation",
             "generate_volume_outline_only": "novel_generation",
             "generate_character_rules_only": "novel_generation",
-            "generate_novel_with_outline": "novel_generation",
-            "generate_novel_with_volume_outline": "novel_generation",
-            "generate_novel_with_character_rules": "novel_generation",
             "generate_script": "script_generation",
             "generate_novel_tweet": "script_generation",
             "generate_video_tweet": "script_generation",

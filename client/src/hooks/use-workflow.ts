@@ -13,7 +13,6 @@ export function useWorkflow() {
   const store = useWorkflowStore();
 
   const nextStepOrder: WorkflowType[] = [
-    'generate_novel',
     'generate_script',
     'generate_lyrics',
     'generate_song',

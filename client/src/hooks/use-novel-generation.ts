@@ -170,12 +170,6 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     if (tab) setActiveTab(tab as string);
   }, [polledRulesData, novelMutations.handleCharacterRulesResult]);
 
-  const polledNovelData: any = novelMutations.polledNovelTask.data;
-  useEffect(() => {
-    const tab = novelMutations.handleNovelResult(polledNovelData);
-    if (tab) setActiveTab(tab as string);
-  }, [polledNovelData, novelMutations.handleNovelResult]);
-
   // ── Analyze mutation ──
   const analyzeMutation = useMutation({
     mutationFn: async () => {
@@ -315,7 +309,6 @@ ${analysis}
 
     // Batch mutations
     outlineMutation: novelMutations.outlineMutation,
-    novelMutation: novelMutations.novelMutation,
     volumeOutlineMutation: novelMutations.volumeOutlineMutation,
     characterRulesMutation: novelMutations.characterRulesMutation,
 
@@ -323,11 +316,9 @@ ${analysis}
     isOutlinePending: novelMutations.isOutlinePending,
     isVolumeOutlinePending: novelMutations.isVolumeOutlinePending,
     isCharacterRulesPending: novelMutations.isCharacterRulesPending,
-    isNovelPending: novelMutations.isNovelPending,
     polledOutlineTask: novelMutations.polledOutlineTask,
     polledVolumeOutlineTask: novelMutations.polledVolumeOutlineTask,
     polledCharacterRulesTask: novelMutations.polledCharacterRulesTask,
-    polledNovelTask: novelMutations.polledNovelTask,
 
     // Analysis
     analyzeMutation,

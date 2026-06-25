@@ -6,21 +6,6 @@ import { Button } from '@/components/ui/button';
 import type { WorkflowType } from '@/types/task';
 
 const NEXT_STEP: Record<string, { label: string; workflowType: WorkflowType; setContent?: (result: Record<string, unknown>) => void }> = {
-  generate_novel: {
-    label: '下一步：生成剧本',
-    workflowType: 'generate_script',
-    setContent: (result) => {
-      const novelContent = (result.novel_content as string) || '';
-      const chapters = result.chapters as { title: string; content: string }[] | undefined;
-      if (chapters) {
-        useWorkflowStore.getState().setNovelContent(
-          chapters.map((ch) => `# ${ch.title}\n\n${ch.content}`).join('\n\n---\n\n')
-        );
-      } else if (novelContent) {
-        useWorkflowStore.getState().setNovelContent(novelContent);
-      }
-    },
-  },
   generate_script: {
     label: '下一步：生成歌词',
     workflowType: 'generate_lyrics',

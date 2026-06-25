@@ -8,6 +8,7 @@ __pycache__/
 .idea/
 .vscode/
 *.log
+*.tsbuildinfo
 .next/
 .claude/
 node_modules/

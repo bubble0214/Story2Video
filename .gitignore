@@ -13,3 +13,14 @@ __pycache__/
 node_modules/
 client/node_modules/
 client/.next/
+
+# debug/temp scripts
+_list_users.py
+run_api.py
+tmp_*.py
+
+# generated novel content & debug artifacts
+client/*.txt
+client/*.json
+client/*_test.py
+client/docs_debug.html

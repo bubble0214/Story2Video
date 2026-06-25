@@ -80,8 +80,16 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3004", "http://localhost:8001"]
 
     # Celery
-    celery_broker_url: str = "redis://redis:6379/1"
-    celery_result_backend: str = "redis://redis:6379/1"
+    celery_broker_url: str = ""
+    celery_result_backend: str = ""
+
+    @property
+    def celery_broker(self) -> str:
+        return self.celery_broker_url or f"redis://{self.redis_host}:{self.redis_port}/1"
+
+    @property
+    def celery_result(self) -> str:
+        return self.celery_result_backend or f"redis://{self.redis_host}:{self.redis_port}/1"
 
     # Music Generation (supported: suno, udio, minimax)
     music_provider: str = "suno"

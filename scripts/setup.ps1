@@ -243,6 +243,29 @@ if (-not $dockerReady) {
 }
 Write-Ok "Docker 运行中。"
 
+# 导入 .env 变量供 docker compose 使用
+# 注意：PowerShell 不会自动导入 .env 文件，需要手动读取
+$envContent = Get-Content (Join-Path $projectRoot ".env") -Raw
+foreach ($line in $envContent -split "`n") {
+    if ($line -match "^\s*([A-Z_]+)=(.*)$") {
+        $key = $matches[1]
+        $val = $matches[2].Trim()
+        # 去除可能的引号
+        if ($val -match '^"(.*)"$') { $val = $matches[1] }
+        Set-Item -Path "env:$key" -Value $val -ErrorAction SilentlyContinue
+    }
+}
+
+# 清理旧的 postgres volume（防止密码不匹配导致连接失败）
+Write-Info "检查并清理旧的数据库 volume ..."
+$oldVolumes = docker volume ls --filter name=story2video_postgres_data -q 2>$null
+if ($oldVolumes) {
+    docker compose down -v 2>$null | Out-Null
+    Write-Info "已清理旧 volume，将使用新密码重建。"
+}
+# 确保 postgres 容器不运行
+docker compose rm -sf postgres 2>$null | Out-Null
+
 # 启动容器
 docker compose up -d postgres redis
 if ($LASTEXITCODE -ne 0) {

@@ -1,7 +1,7 @@
 """rename novel_drafts to drafts, add workflow_type
 
-Revision ID: 0006_rename_novel_drafts_to_drafts
-Revises: a1b2c3d4e5f6
+Revision ID: 0006
+Revises: 0009
 Create Date: 2026-06-22 12:00:00.000000
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0006'
-down_revision: Union[str, None] = 'a1b2c3d4e5f6'
+down_revision: Union[str, None] = '0009'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

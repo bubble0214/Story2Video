@@ -1,6 +1,6 @@
 """create canvases table
 
-Revision ID: db8640412864
+Revision ID: 0007
 Revises: 0005
 Create Date: 2026-06-18 09:35:11.610427
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'db8640412864'
+revision: str = '0007'
 down_revision: Union[str, None] = '0005'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

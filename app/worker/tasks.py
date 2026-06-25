@@ -239,8 +239,7 @@ async def _step_generate_outline(
     task_id = input_params.get("_task_id")
     session = input_params.get("_session")
 
-    logger.info("=== _step_generate_outline custom_prompt (first 500 chars) === %s", custom_prompt[:500])
-    logger.info("=== _step_generate_outline refs count === %s", len(refs))
+    logger.info("_step_generate_outline refs count === %s", len(refs))
 
     # Progress: preparing prompt
     if task_id and session:
@@ -283,8 +282,6 @@ async def _step_generate_outline(
         )
 
     content = await provider.chat(messages)
-
-    logger.info("=== _step_generate_outline raw LLM response (first 800 chars) === %s", content[:800])
 
     # Return the raw text outline — no JSON parsing needed
     return {"outline_text": content.strip()}

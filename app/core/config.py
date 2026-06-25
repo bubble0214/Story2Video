@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+WEAK_PASSWORD_SENTINELS = [
+    "change_me_in_production",
+    "change_me_in_production_jwt_secret_key_32chars",
+    "change_me_in_production_enc_key_64_hex_chars_123456",
+]
 
 
 class Settings(BaseSettings):
@@ -83,6 +90,20 @@ class Settings(BaseSettings):
     # Avatar / Digital Human
     avatar_provider: str = "heygen"
     avatar_api_key: str = ""
+
+    @model_validator(mode="after")
+    def _reject_weak_defaults(self) -> "Settings":
+        for field, val in [
+            ("POSTGRES_PASSWORD / DB password", self.postgres_password),
+            ("JWT_SECRET_KEY", self.jwt_secret_key),
+            ("ENCRYPTION_KEY", self.encryption_key),
+        ]:
+            if val in WEAK_PASSWORD_SENTINELS or not val:
+                raise ValueError(
+                    f"{field} must be set to a strong value in .env or environment. "
+                    f"Found: {val!r}"
+                )
+        return self
 
 
 settings = Settings()

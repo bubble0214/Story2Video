@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-story2video}
       POSTGRES_USER: ${POSTGRES_USER:-story2video}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       # 宿主 5434 → 容器 5432，避免与本机已有 PostgreSQL 冲突
       - "5434:5432"

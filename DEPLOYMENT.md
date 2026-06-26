@@ -338,16 +338,31 @@ npm run dev
 
 **方式 A/B（一键脚本用户）**：直接重新运行脚本即可（会自动跳过已完成的步骤，秒级启动）：
 ```powershell
-.\scripts\setup.ps1       # Windows
+.\scripts\setup.ps1       # Windows（首次安装或需要重装时使用）
 ```
 ```bash
-./scripts/setup.sh        # Linux/macOS
+./scripts/setup.sh        # Linux/macOS（首次安装或需要重装时使用）
 ```
+
+**推荐 — 单独快速启动脚本**（跳过安装，仅启动服务，适合每日使用）：
+```powershell
+.\scripts\start.ps1       # Windows（管理员 PowerShell）
+```
+```bash
+./scripts/start.sh        # Linux/macOS
+```
+
+快速启动脚本会自动：
+1. 前置检查（确认已安装完成）
+2. 启动 PostgreSQL + Redis + **Celery Worker**（Docker 容器）
+3. 运行数据库迁移
+4. 启动后端 API
+5. 启动前端
 
 **方式 D（手动部署用户）**：
 ```bash
-# 终端 1：启动数据库
-docker compose up -d postgres redis
+# 终端 1：启动数据库 + Celery Worker
+docker compose up -d postgres redis worker
 
 # 终端 1：启动后端
 python run_api.py

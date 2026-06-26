@@ -201,7 +201,7 @@ if ! docker info &>/dev/null; then
 fi
 OK "Docker 运行中。"
 
-docker compose up -d postgres redis
+docker compose up -d postgres redis worker
 if [ $? -ne 0 ]; then
     ERR "容器启动失败。请检查 Docker 日志。"
     exit 1

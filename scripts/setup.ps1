@@ -267,7 +267,7 @@ if ($oldVolumes) {
 docker compose rm -sf postgres 2>$null | Out-Null
 
 # 启动容器
-docker compose up -d postgres redis
+docker compose up -d postgres redis worker
 if ($LASTEXITCODE -ne 0) {
     Write-Err "容器启动失败。请检查 Docker 日志。"
     exit 1

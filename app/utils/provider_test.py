@@ -85,6 +85,16 @@ async def check_provider_connection(
         if not base_url:
             return False, "base_url is required for this provider"
         url = url_template.replace("{base_url}", base_url.rstrip("/"))
+    elif base_url:
+        # User provided a custom base_url — use it instead of the default server
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path = parsed.path
+        clean_base = base_url.rstrip("/")
+        # Avoid double /v1 when base_url already contains it
+        if path.startswith("/v1/") and clean_base.endswith("/v1"):
+            clean_base = clean_base.removesuffix("/v1")
+        url = f"{clean_base}{path}"
     headers = {k: v.replace("{key}", api_key) for k, v in headers_template.items()}
 
     try:

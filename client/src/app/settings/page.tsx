@@ -176,20 +176,16 @@ export default function SettingsPage() {
               type="password"
             />
           </div>
-          {(newProvider === 'custom' || newBaseUrl || newModelName) && (
-            <>
-              <Input
-                placeholder="基础 URL（如 https://api.example.com/v1）"
-                value={newBaseUrl}
-                onChange={(e) => setNewBaseUrl(e.target.value)}
-              />
-              <Input
-                placeholder="模型名称（如 gpt-4o-mini）"
-                value={newModelName}
-                onChange={(e) => setNewModelName(e.target.value)}
-              />
-            </>
-          )}
+          <Input
+            placeholder="基础 URL（可选，如 https://api.example.com/v1）"
+            value={newBaseUrl}
+            onChange={(e) => setNewBaseUrl(e.target.value)}
+          />
+          <Input
+            placeholder="模型名称（可选，如 gpt-4o-mini）"
+            value={newModelName}
+            onChange={(e) => setNewModelName(e.target.value)}
+          />
           <div className="flex gap-2">
             <Button onClick={handleAddKey} disabled={createMutation.isPending}>
               {createMutation.isPending ? '保存中...' : '保存'}

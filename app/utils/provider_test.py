@@ -57,9 +57,9 @@ _PROVIDER_TESTS: dict[str, tuple[str, dict[str, str], str]] = {
         "get",
     ),
     "custom": (
-        "{base_url}/embeddings",
+        "{base_url}/models",
         {"Authorization": "Bearer {key}"},
-        "post_custom_embedding",
+        "get",
     ),
 }
 
@@ -120,25 +120,6 @@ async def check_provider_connection(
                         },
                     },
                 )
-            elif method == "post_custom_embedding":
-                resp = await client.post(
-                    url,
-                    headers=headers,
-                    json={
-                        "model": model_name or "text-embedding-3-small",
-                        "input": "ping",
-                    },
-                )
-                if resp.status_code == 404:
-                    # Some providers (e.g. SiliconFlow) require array input
-                    resp = await client.post(
-                        url,
-                        headers=headers,
-                        json={
-                            "model": model_name or "text-embedding-3-small",
-                            "input": ["ping"],
-                        },
-                    )
             else:
                 resp = await client.get(url, headers=headers)
 

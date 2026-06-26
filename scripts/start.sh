@@ -108,7 +108,7 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 5：启动后端 API
+# 阶段 5：启动后端 API（nohup 脱离终端）
 # ═══════════════════════════════════════════════════════════
 printf "\n--- [5/7] 启动后端 API -----------------------\033[33m\033[0m\n"
 
@@ -126,8 +126,9 @@ stop_port() {
 stop_port "$API_PORT"
 
 INFO "启动后端 API (http://localhost:$API_PORT) ..."
-"$PYTHON_EXE" "$PROJECT_ROOT/run_api.py" &
-API_PID=$!
+nohup "$PYTHON_EXE" "$PROJECT_ROOT/run_api.py" \
+    > "$PROJECT_ROOT/api.log" 2>&1 &
+echo $! > "$PROJECT_ROOT/.api.pid"
 sleep 3
 
 # 验证 API
@@ -146,14 +147,16 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════
-# 阶段 6：启动前端
+# 阶段 6：启动前端（nohup 脱离终端）
 # ═══════════════════════════════════════════════════════════
 printf "\n--- [6/7] 启动前端 ---------------------------\033[33m\033[0m\n"
 
 stop_port "$FRONTEND_PORT"
 INFO "启动前端 (http://localhost:$FRONTEND_PORT) ..."
-(cd "$CLIENT_DIR" && npm run dev) &
-FRONT_PID=$!
+cd "$CLIENT_DIR"
+nohup npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
+echo $! > "$PROJECT_ROOT/.frontend.pid"
+cd "$PROJECT_ROOT"
 sleep 3
 OK "前端已启动。"
 
@@ -167,10 +170,9 @@ printf "  \033[36m前端地址：http://localhost:$FRONTEND_PORT\033[0m\n"
 printf "  \033[36m后端 API：http://localhost:$API_PORT\033[0m\n"
 printf "  \033[36mAPI 文档：http://localhost:$API_PORT/docs\033[0m\n\n"
 printf "  \033[33m停止服务：\033[0m\n"
-printf "    kill $API_PID $FRONT_PID; docker compose down\n"
+printf "    kill \$(cat .api.pid) \$(cat .frontend.pid); docker compose down\n"
 printf "  \033[33m再次启动：\033[0m\n"
 printf "    重新运行此脚本\n\n"
 printf "\033[32m============================================\033[0m\n"
 
-INFO "服务在后台运行中。按 Ctrl+C 退出（不会停止服务）。"
-wait 2>/dev/null || true
+INFO "服务已完全脱离终端运行，关闭终端不会影响服务。"

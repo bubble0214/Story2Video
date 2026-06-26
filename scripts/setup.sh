@@ -309,8 +309,9 @@ stop_port "$FRONTEND_PORT"
 
 # 启动后端 API
 INFO "启动后端 API (http://localhost:$API_PORT) ..."
-"$PYTHON_EXE" "$PROJECT_ROOT/run_api.py" &
-API_PID=$!
+nohup "$PYTHON_EXE" "$PROJECT_ROOT/run_api.py" \
+    > "$PROJECT_ROOT/api.log" 2>&1 &
+echo $! > "$PROJECT_ROOT/.api.pid"
 sleep 3
 
 # 验证 API
@@ -330,8 +331,10 @@ fi
 
 # 启动前端
 INFO "启动前端 (http://localhost:$FRONTEND_PORT) ..."
-(cd "$CLIENT_DIR" && npm run dev) &
-FRONT_PID=$!
+cd "$CLIENT_DIR"
+nohup npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
+echo $! > "$PROJECT_ROOT/.frontend.pid"
+cd "$PROJECT_ROOT"
 OK "前端已启动。"
 
 # ═══════════════════════════════════════════════════════════
@@ -348,10 +351,9 @@ printf "    1. 浏览器打开 http://localhost:$FRONTEND_PORT\n"
 printf "    2. 注册账号\n"
 printf "    3. 进入 设置 页面配置 LLM API Key\n\n"
 printf "  \033[33m停止服务：\033[0m\n"
-printf "    kill $API_PID $FRONT_PID; docker compose down\n"
+printf "    kill \$(cat .api.pid) \$(cat .frontend.pid); docker compose down\n"
 printf "  \033[33m再次启动：\033[0m\n"
-printf "    重新运行此脚本即可\n\n"
+printf "    ./scripts/start.sh\n\n"
 printf "\033[32m============================================\033[0m\n"
 
-INFO "服务在后台运行中。按 Ctrl+C 退出（不会停止服务）。"
-wait 2>/dev/null || true
+INFO "服务已完全脱离终端运行，关闭终端不会影响服务。"

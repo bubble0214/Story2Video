@@ -59,7 +59,10 @@ export function useDraftPersistence({ initialDraftId, collectStepData: _initialC
           }
         }
         // New draft — create a fresh one with a unique group id
-        const draftGroupId = crypto.randomUUID();
+        const draftGroupId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
         const { data: draft } = await draftsApi.create({
           workflow_type: workflowType,
           draft_group_id: draftGroupId,

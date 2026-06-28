@@ -243,7 +243,10 @@ export function WorkflowPage({
   const ensureDraft = useCallback(async () => {
     if (draftCreatedRef.current && draftId) return draftId;
     try {
-      const draftGroupId = crypto.randomUUID();
+      const draftGroupId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      });
       const { data: newDraft } = await draftsApi.create({ workflow_type: workflowType, draft_group_id: draftGroupId });
       setDraftId(newDraft.id);
       draftCreatedRef.current = true;

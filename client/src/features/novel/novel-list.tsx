@@ -183,7 +183,7 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
             <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{analysis}</pre>
             <div className="flex justify-end">
               <Button variant="default" size="sm" onClick={applyTemplate} className="text-xs h-8">
-                <Sparkles className="h-3 w-3 mr-1" /> 套用模板生成
+                <Sparkles className="h-3 w-3 mr-1" /> 生成创作提示
               </Button>
             </div>
           </CardContent>

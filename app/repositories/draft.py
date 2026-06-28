@@ -19,12 +19,14 @@ class DraftRepository:
         user_id: UUID,
         title: str = "未命名",
         workflow_type: str = "novel",
+        draft_group_id: UUID | None = None,
     ) -> Draft:
         obj = Draft(
             user_id=user_id,
             title=title,
             workflow_type=workflow_type,
             step_data={"schema_version": 1},
+            draft_group_id=draft_group_id,
         )
         self._session.add(obj)
         await self._session.commit()
@@ -47,6 +49,23 @@ class DraftRepository:
         stmt = stmt.order_by(Draft.updated_at.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def find_in_progress(
+        self,
+        user_id: UUID,
+        workflow_type: str,
+    ) -> Draft | None:
+        """Find the most recent in_progress draft for a user+workflow_type."""
+        stmt = (
+            select(Draft)
+            .where(Draft.user_id == user_id)
+            .where(Draft.workflow_type == workflow_type)
+            .where(Draft.status == "in_progress")
+            .order_by(Draft.updated_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def update(
         self,

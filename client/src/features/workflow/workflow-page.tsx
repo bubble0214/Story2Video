@@ -243,9 +243,11 @@ export function WorkflowPage({
   const ensureDraft = useCallback(async () => {
     if (draftCreatedRef.current && draftId) return draftId;
     try {
-      const { data: newDraft } = await draftsApi.create({ workflow_type: workflowType });
+      const draftGroupId = crypto.randomUUID();
+      const { data: newDraft } = await draftsApi.create({ workflow_type: workflowType, draft_group_id: draftGroupId });
       setDraftId(newDraft.id);
       draftCreatedRef.current = true;
+      try { sessionStorage.setItem(`active_draft_${workflowType}`, newDraft.id); } catch {}
       return newDraft.id;
     } catch {
       return null;

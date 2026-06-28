@@ -2,51 +2,103 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { draftsApi } from '@/services/drafts';
+import { toast } from '@/hooks/use-toast';
 import type { NovelDraftStepData } from '@/types/draft';
 
 export interface UseDraftPersistenceOptions {
   initialDraftId?: string;
   collectStepData: () => Record<string, any>;
+  workflowType?: string;
 }
 
-export function useDraftPersistence({ initialDraftId, collectStepData }: UseDraftPersistenceOptions) {
+// sessionStorage key for remembering active draft across navigations
+function activeDraftKey(workflowType: string) {
+  return `active_draft_${workflowType}`;
+}
+
+export function useDraftPersistence({ initialDraftId, collectStepData: _initialCollect, workflowType = 'novel' }: UseDraftPersistenceOptions) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('未命名');
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const draftCreatedRef = useRef(false);
+  const collectStepDataRef = useRef(_initialCollect);
+  // Allow external update of collectStepData
+  const setCollectStepData = useCallback((fn: () => Record<string, any>) => {
+    collectStepDataRef.current = fn;
+  }, []);
 
-  const ensureDraft = useCallback(async () => {
+  // ── Ensure draft exists ──
+  const ensureDraft = useCallback(async (currentStep: string = 'prompt') => {
     if (draftCreatedRef.current && draftId) return draftId;
     try {
-      const { data: newDraft } = await draftsApi.create({ workflow_type: 'novel' });
-      setDraftId(newDraft.id);
-      setDraftTitle(newDraft.title || '未命名');
-      draftCreatedRef.current = true;
-      return newDraft.id;
-    } catch {
+      const data = collectStepDataRef.current();
+      if (initialDraftId) {
+        // Editing existing draft — load it
+        const { data: existing } = await draftsApi.get(initialDraftId);
+        setDraftId(existing.id);
+        setDraftTitle(existing.title || '未命名');
+        draftCreatedRef.current = true;
+        // Remember this draft in session storage
+        try { sessionStorage.setItem(activeDraftKey(workflowType), existing.id); } catch {}
+        return existing.id;
+      } else {
+        // Check session storage for an active draft for this workflow type
+        const rememberedId = (() => { try { return sessionStorage.getItem(activeDraftKey(workflowType)); } catch { return null; } })();
+        if (rememberedId) {
+          try {
+            const { data: existing } = await draftsApi.get(rememberedId);
+            if (existing.status === 'in_progress') {
+              setDraftId(existing.id);
+              setDraftTitle(existing.title || '未命名');
+              draftCreatedRef.current = true;
+              return existing.id;
+            }
+          } catch {
+            // Stale reference, ignore
+          }
+        }
+        // New draft — create a fresh one with a unique group id
+        const draftGroupId = crypto.randomUUID();
+        const { data: draft } = await draftsApi.create({
+          workflow_type: workflowType,
+          draft_group_id: draftGroupId,
+        });
+        setDraftId(draft.id);
+        setDraftTitle(draft.title || '未命名');
+        draftCreatedRef.current = true;
+        // Remember this draft in session storage
+        try { sessionStorage.setItem(activeDraftKey(workflowType), draft.id); } catch {}
+        return draft.id;
+      }
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: string } }; message?: string };
+      console.error('[DraftPersistence] ensureDraft failed:', e.response?.data?.detail || e.message);
       return null;
     }
-  }, [draftId]);
+  // We use initialDraftId as a stable identifier — only re-create callback if it changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftId]);
 
   const saveDraft = useCallback(async (
     step: string,
     overrides: Record<string, any> = {},
     completed = false,
   ) => {
-    const id = await ensureDraft();
+    const id = await ensureDraft(step);
     if (!id) return;
     try {
-      const data = collectStepData();
+      const data = collectStepDataRef.current();
       await draftsApi.update(id, {
         current_step: step,
         status: completed ? 'completed' : 'in_progress',
         step_data: { ...data, ...overrides } as any,
       });
-    } catch {
-      // Silent fail
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: string } }; message?: string };
+      console.error('[DraftPersistence] save failed:', e.response?.data?.detail || e.message);
     }
-  }, [ensureDraft, collectStepData]);
+  }, [ensureDraft]);
 
   // ── Mount-time draft restoration ──
   // Accepts a restore callback from the parent to set interactive state
@@ -87,6 +139,7 @@ export function useDraftPersistence({ initialDraftId, collectStepData }: UseDraf
     ensureDraft,
     saveDraft,
     draftCreatedRef,
+    setCollectStepData,
     // Callback for parent to register a restore function
     setOnRestore,
   };

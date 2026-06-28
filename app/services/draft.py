@@ -29,8 +29,38 @@ class DraftService:
     def __init__(self, repo: DraftRepository) -> None:
         self._repo = repo
 
-    async def create(self, user_id: UUID, title: str = "未命名", workflow_type: str = "novel"):
-        return await self._repo.create(user_id=user_id, title=title, workflow_type=workflow_type)
+    async def create(self, user_id: UUID, title: str = "未命名", workflow_type: str = "novel", draft_group_id: UUID | None = None):
+        return await self._repo.create(user_id=user_id, title=title, workflow_type=workflow_type, draft_group_id=draft_group_id)
+
+    async def upsert(
+        self,
+        user_id: UUID,
+        title: str = "未命名",
+        workflow_type: str = "novel",
+        current_step: str = "prompt",
+        step_data: dict | None = None,
+    ) -> Draft:
+        """Find existing in_progress draft for this user+type, or create a new one.
+
+        This ensures each user has at most one in_progress draft per workflow type.
+        """
+        existing = await self._repo.find_in_progress(
+            user_id=user_id,
+            workflow_type=workflow_type,
+        )
+        if existing is not None:
+            updated = await self._repo.update(
+                draft_id=existing.id,
+                title=title,
+                current_step=current_step,
+                step_data=step_data or {"schema_version": 1},
+            )
+            return updated or existing
+        return await self._repo.create(
+            user_id=user_id,
+            title=title,
+            workflow_type=workflow_type,
+        )
 
     async def get(self, draft_id: UUID):
         return await self._repo.get_by_id(draft_id)

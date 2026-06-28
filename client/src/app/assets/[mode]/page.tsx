@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
@@ -66,11 +67,29 @@ export default function AssetCategoryPage() {
       const response = await draftsApi.list({ limit: 50, workflow_type: mode });
       return response.data;
     },
-    enabled: !!workflowType,
+    enabled: !!mode,
   });
   const drafts: DraftListItem[] = draftsData ?? [];
 
-  const inProgressDrafts = drafts.filter((d) => d.status === 'in_progress');
+  const inProgressDrafts = useMemo(() => {
+    const filtered = drafts
+      .filter((d) => d.status === 'in_progress')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    // Group by draft_group_id, show only latest per group.
+    // Drafts with the same title but null group_id are also grouped.
+    const groups = new Map<string, DraftListItem[]>();
+    for (const draft of filtered) {
+      const key = draft.draft_group_id ?? (draft.title?.trim()?.toLowerCase() || draft.id);
+      const group = groups.get(key) ?? [];
+      group.push(draft);
+      groups.set(key, group);
+    }
+    const result: DraftListItem[] = [];
+    for (const [, group] of groups) {
+      result.push(group[0]);
+    }
+    return result.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  }, [drafts]);
 
   const deleteDraftMutation = useMutation({
     mutationFn: (id: string) => draftsApi.delete(id),
@@ -118,6 +137,8 @@ export default function AssetCategoryPage() {
           <Button
             className="ml-auto shrink-0"
             onClick={() => {
+              // Clear session storage so the workflow page creates a fresh draft
+              try { sessionStorage.removeItem(`active_draft_${mode}`); } catch {}
               router.push(`/workflow/${mode}`);
             }}
           >

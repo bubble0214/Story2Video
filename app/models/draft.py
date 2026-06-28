@@ -32,6 +32,11 @@ class Draft(Base):
         nullable=False,
         comment="Workflow mode: novel | script | lyrics | song | image | video",
     )
+    draft_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        nullable=True,
+        index=True,
+        comment="UUID grouping drafts belonging to the same project (e.g. same novel)",
+    )
     status: Mapped[str] = mapped_column(
         String(20),
         default="in_progress",

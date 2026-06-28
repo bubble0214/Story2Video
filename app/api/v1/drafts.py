@@ -17,6 +17,7 @@ from app.schemas.draft import (
     GenerateChapterResp,
     SubmitVolumeDecisionResp,
     UpdateDraftReq,
+    UpsertDraftReq,
     VolumeReviewDecisionReq,
 )
 from app.services.draft import DraftService
@@ -39,10 +40,35 @@ async def create_draft(
     user_id: CurrentUserId,
     svc: DraftService = Depends(get_draft_service),
 ) -> DraftResp:
+    draft_group_id: UUID | None = None
+    if body.draft_group_id:
+        draft_group_id = UUID(body.draft_group_id)
     draft = await svc.create(
         user_id=UUID(user_id),
         title=body.title,
         workflow_type=body.workflow_type,
+        draft_group_id=draft_group_id,
+    )
+    return DraftResp.model_validate(draft)
+
+
+@router.post(
+    "/upsert",
+    response_model=DraftResp,
+    status_code=status.HTTP_200_OK,
+    summary="Create or update an in-progress draft for this user+workflow_type",
+)
+async def upsert_draft(
+    body: UpsertDraftReq,
+    user_id: CurrentUserId,
+    svc: DraftService = Depends(get_draft_service),
+) -> DraftResp:
+    draft = await svc.upsert(
+        user_id=UUID(user_id),
+        title=body.title,
+        workflow_type=body.workflow_type,
+        current_step=body.current_step,
+        step_data=body.step_data,
     )
     return DraftResp.model_validate(draft)
 

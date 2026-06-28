@@ -37,6 +37,7 @@ export interface Draft {
   id: string;
   title: string;
   workflow_type: string;
+  draft_group_id?: string;
   status: 'in_progress' | 'completed';
   current_step: string;
   step_data: DraftStepData;
@@ -48,6 +49,7 @@ export interface DraftListItem {
   id: string;
   title: string;
   workflow_type: string;
+  draft_group_id?: string;
   status: string;
   current_step: string;
   updated_at: string;
@@ -56,6 +58,14 @@ export interface DraftListItem {
 export interface CreateDraftReq {
   title?: string;
   workflow_type: string;
+  draft_group_id?: string;
+}
+
+export interface UpsertDraftReq {
+  title?: string;
+  workflow_type: string;
+  current_step: string;
+  step_data: DraftStepData;
 }
 
 export interface UpdateDraftReq {

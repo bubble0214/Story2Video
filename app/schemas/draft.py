@@ -9,6 +9,14 @@ from pydantic import BaseModel, Field
 class CreateDraftReq(BaseModel):
     title: str = Field(default="未命名", max_length=255)
     workflow_type: str = Field(default="novel", max_length=50)
+    draft_group_id: str | None = Field(default=None, description="UUID string for grouping related drafts")
+
+
+class UpsertDraftReq(BaseModel):
+    title: str = Field(default="未命名", max_length=255)
+    workflow_type: str = Field(default="novel", max_length=50)
+    current_step: str = Field(default="prompt", max_length=50)
+    step_data: dict = Field(default_factory=lambda: {"schema_version": 1})
 
 
 class UpdateDraftReq(BaseModel):
@@ -22,6 +30,7 @@ class DraftResp(BaseModel):
     id: UUID
     title: str
     workflow_type: str
+    draft_group_id: UUID | None = None
     status: str
     current_step: str
     step_data: dict
@@ -35,6 +44,7 @@ class DraftListItem(BaseModel):
     id: UUID
     title: str
     workflow_type: str
+    draft_group_id: UUID | None = None
     status: str
     current_step: str
     updated_at: datetime

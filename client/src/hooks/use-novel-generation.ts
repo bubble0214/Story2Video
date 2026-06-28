@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { novelsApi } from '@/services/novels';
 import { promptsApi } from '@/services/prompts';
@@ -71,12 +71,18 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     ...(genModel ? { model: genModel } : {}),
   }), [referenceData, customPrompt, genModel]);
 
-  // ── collectStepData (for draft persistence) ──
-  const { chapters, generateMode, qualityReport, qualityRevisions, qualityRevisionsSummary,
-    volumeReviewState, volumeReviewReport, volumeReviewDecision, volume2Outline,
-    finalReviewData } = useInteractiveGeneration({ draftId: null, genModel: '', saveDraft: async () => {} });
-  // ^ placeholder — we'll override below after draft is available
+  // ── Draft persistence ──
+  const draftPersistence = useDraftPersistence({ initialDraftId, collectStepData: () => ({}) });
+  // collectStepData is replaced below after interactiveGen is created
 
+  // ── Interactive generation (depends on draftId) ──
+  const interactiveGen = useInteractiveGeneration({
+    draftId: draftPersistence.draftId,
+    genModel,
+    saveDraft: draftPersistence.saveDraft,
+  });
+
+  // Build collectStepData after interactiveGen is available
   const collectStepData = useCallback(() => ({
     schema_version: 1,
     keywords,
@@ -88,30 +94,24 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     volumeOutlineText: volumeOutlineContent,
     characterRulesText: characterRulesContent,
     novelContent,
-    // These are overwritten by saveDraft overrides anyway for interactive state
-    chapters: undefined,
-    totalChapters: undefined,
-    generateMode: (generateMode ?? undefined) as 'batch' | 'interactive' | undefined,
-    qualityReport: undefined,
-    qualityRevisions: undefined,
-    qualityRevisionsSummary: undefined,
-    volumeReviewState: undefined,
-    volumeReviewReport: undefined,
-    volumeReviewDecision: undefined,
-    volume2Outline: undefined,
-    finalReviewReport: undefined,
-    finalReviewRevisions: undefined,
-  }), [keywords, customPrompt, genModel, novels, analysis, outlineContent, volumeOutlineContent, characterRulesContent, novelContent, generateMode]);
+    chapters: interactiveGen.chapters,
+    totalChapters: interactiveGen.totalChapters,
+    generateMode: interactiveGen.generateMode ?? undefined,
+    qualityReport: interactiveGen.qualityReport ?? undefined,
+    qualityRevisions: interactiveGen.qualityRevisions,
+    qualityRevisionsSummary: interactiveGen.qualityRevisionsSummary ?? undefined,
+    volumeReviewState: interactiveGen.volumeReviewState ?? undefined,
+    volumeReviewReport: interactiveGen.volumeReviewReport ?? undefined,
+    volumeReviewDecision: interactiveGen.volumeReviewDecision ?? undefined,
+    volume2Outline: interactiveGen.volume2Outline ?? undefined,
+    finalReviewReport: (interactiveGen.finalReviewData as any)?.report ?? undefined,
+    finalReviewRevisions: (interactiveGen.finalReviewData as any)?.revised_chapters ?? undefined,
+  }), [keywords, customPrompt, genModel, novels, analysis, outlineContent, volumeOutlineContent, characterRulesContent, novelContent, interactiveGen.chapters, interactiveGen.generateMode, interactiveGen.qualityReport, interactiveGen.qualityRevisions, interactiveGen.qualityRevisionsSummary, interactiveGen.volumeReviewState, interactiveGen.volumeReviewReport, interactiveGen.volumeReviewDecision, interactiveGen.volume2Outline, interactiveGen.finalReviewData]);
 
-  // ── Draft persistence ──
-  const draftPersistence = useDraftPersistence({ initialDraftId, collectStepData });
-
-  // ── Interactive generation (depends on draftId) ──
-  const interactiveGen = useInteractiveGeneration({
-    draftId: draftPersistence.draftId,
-    genModel,
-    saveDraft: draftPersistence.saveDraft,
-  });
+  // Re-set collectStepData on draftPersistence after it's built
+  useEffect(() => {
+    draftPersistence.setCollectStepData(collectStepData);
+  }, [collectStepData, draftPersistence.setCollectStepData]);
 
   // ── Wire up draft restoration ──
   useEffect(() => {
@@ -155,8 +155,11 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
   const polledOutlineData: any = novelMutations.polledOutlineTask.data;
   useEffect(() => {
     const tab = novelMutations.handleOutlineResult(polledOutlineData);
-    if (tab) setActiveTab(tab as string);
-  }, [polledOutlineData, novelMutations.handleOutlineResult]);
+    if (tab) {
+      setActiveTab(tab as string);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polledOutlineData]);
 
   const polledVolumeData: any = novelMutations.polledVolumeOutlineTask.data;
   useEffect(() => {
@@ -221,7 +224,8 @@ ${analysis}
 四、故事梗概（300字以内）`;
     setCustomPrompt(template);
     toast({ title: '已套用创作模板' });
-  }, [analysis, novels, setCustomPrompt]);
+    setTimeout(() => draftPersistence.saveDraft(activeTab), 100);
+  }, [analysis, novels, setCustomPrompt, draftPersistence.saveDraft, activeTab]);
 
   // ── Tab guard ──
   const hasOutline = outlineContent.trim().length > 0;
@@ -234,7 +238,20 @@ ${analysis}
     if (tab === 'rules' && !hasCharacterRules) return;
     if (tab === 'generate' && !novelContent && interactiveGen.generateMode !== 'interactive') return;
     setActiveTab(tab);
-  }, [hasOutline, hasVolumeOutline, hasCharacterRules, novelContent, interactiveGen.generateMode]);
+    draftPersistence.saveDraft(tab);
+  }, [hasOutline, hasVolumeOutline, hasCharacterRules, novelContent, interactiveGen.generateMode, draftPersistence.saveDraft]);
+
+  // ── Auto-save on user actions (debounced, after draft loaded) ──
+  const draftLoaded = draftPersistence.draftLoaded;
+  const hasUserContent = customPrompt.trim().length > 0 || outlineContent.trim().length > 0
+    || genModel.length > 0 || analysis !== null;
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (!hasUserContent) return;
+    const timer = setTimeout(() => draftPersistence.saveDraft(activeTab), 800);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftLoaded, customPrompt, outlineContent, volumeOutlineContent, characterRulesContent, novelContent, genModel, analysis]);
 
   return {
     // Store-derived

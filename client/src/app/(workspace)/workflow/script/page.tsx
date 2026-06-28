@@ -1,13 +1,19 @@
 'use client';
 
-import { WorkflowPage } from '@/features/workflow/workflow-page';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { ScriptPage } from '@/features/script/script-page';
 
-export default function ScriptPage() {
+function ScriptRouteInner() {
+  const searchParams = useSearchParams();
+  const draftParam = searchParams.get('draft') ?? undefined;
+  return <ScriptPage initialDraftId={draftParam} />;
+}
+
+export default function ScriptRoutePage() {
   return (
-    <WorkflowPage
-      workflowType="generate_script"
-      title="剧本生成"
-      description="根据小说内容生成剧本"
-    />
+    <Suspense fallback={<div className="py-8 px-4 max-w-2xl mx-auto"><p className="text-muted-foreground">加载中...</p></div>}>
+      <ScriptRouteInner />
+    </Suspense>
   );
 }

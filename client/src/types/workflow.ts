@@ -19,6 +19,12 @@ export const WORKFLOW_TYPE_TO_MODE: Record<string, WorkflowMode> = {
   generate_video: 'video',
 };
 
+export interface CharacterSettings {
+  genre: string;
+  format: string;
+  tone: string;
+}
+
 export interface WorkflowState {
   keywords: string;
   workflowMode: WorkflowMode;
@@ -32,4 +38,5 @@ export interface WorkflowState {
   outlineContent: string;
   volumeOutlineContent: string;
   characterRulesContent: string;
+  characterSettings: CharacterSettings;
 }

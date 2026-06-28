@@ -64,7 +64,7 @@ if exist "%ROOT_DIR%.venv\Scripts\activate.bat" (
 start "Story2Video-API" cmd /c "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 2>&1"
 
 :: 启动 Celery Worker — 后台运行
-start "Story2Video-Worker" cmd /c "celery -A app.core.celery:celery_app worker --loglevel=info --queues=default,novel_generation,lyrics_generation,music_generation,video_generation,dead_letter 2>&1"
+start "Story2Video-Worker" cmd /c "celery -A app.core.celery:celery_app worker --loglevel=info --queues=default,novel_generation,script_generation,lyrics_generation,music_generation,image_generation,video_generation,dead_letter 2>&1"
 
 echo [+] 后端 API 和 Worker 已启动
 echo.

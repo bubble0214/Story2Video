@@ -146,7 +146,16 @@ async def _step_search_references(
 async def _step_generate_novel(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
-    """Generate full novel content via LLM."""
+    """Generate full novel content via LLM.
+
+    If novel_content is already provided in input_params (e.g. user uploaded
+    a .txt file on the frontend), pass it through without calling the LLM.
+    """
+    # Passthrough: user-supplied novel content
+    existing = input_params.get("novel_content") or context.get("novel_content")
+    if existing and existing.strip():
+        logger.info("_step_generate_novel passthrough (%d chars)", len(existing))
+        return {"novel_content": existing.strip()}
     if user_id is None:
         raise ValueError("User ID required to resolve LLM API key")
 
@@ -345,6 +354,9 @@ async def _step_generate_script(
     if not novel:
         raise ValueError("No novel content provided for script generation")
 
+    # Inject character setting prompt as the first system message (role activation)
+    character_prompt = input_params.get("character_setting_prompt", "").strip()
+
     builder = ScriptPromptBuilder()
     messages = builder.build(
         novel_content=novel,
@@ -352,7 +364,12 @@ async def _step_generate_script(
         style=input_params.get("script_style", ""),
     )
 
-    # Inject user's custom prompt as an additional instruction (e.g. novel-tweet-optimization style)
+    if character_prompt:
+        # Prepend the role-setting prompt as the very first system message
+        # so the AI adopts the screenwriter role before processing anything else
+        messages.insert(0, {"role": "system", "content": character_prompt})
+
+    # Inject user's custom prompt as an additional instruction
     user_prompt = input_params.get("prompt", "").strip()
     if user_prompt:
         messages.append({
@@ -372,6 +389,57 @@ async def _step_generate_script(
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
     return {"script_content": content}
+
+
+async def _step_analyze_novel(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Analyze novel content to extract core elements for screenwriting.
+
+    Takes the novel + character role settings and produces:
+    - Logline (one-sentence core story)
+    - Character profiles (dramatic desire + fatal flaw)
+    - Top 3-5 must-keep iconic scenes
+    - Suggestions for non-visualizable elements
+    """
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    novel = context.get("novel_content") or input_params.get("novel_content", "")
+    if not novel:
+        raise ValueError("No novel content provided for analysis")
+
+    character_prompt = input_params.get("character_setting_prompt", "").strip()
+
+    messages: list[dict] = []
+
+    # Role setting as system prompt
+    if character_prompt:
+        messages.append({"role": "system", "content": character_prompt})
+    else:
+        messages.append({
+            "role": "system",
+            "content": "你现在是一位资深影视编剧，擅长将文学作品转化为视觉性极强的电影剧本。",
+        })
+
+    # User prompt: analysis task
+    analysis_prompt = (
+        "请仔细阅读以上小说章节。作为编剧，请你完成以下分析：\n\n"
+        "1. 用一段话概括核心故事（一句话梗概Logline）。\n\n"
+        "2. 列出主要人物小传（每人一句话，标明其戏剧性欲望和致命缺陷）。\n\n"
+        "3. 标出3-5个最震撼、必须保留的'名场面'。\n\n"
+        "4. 指出原著中可能不适合影视化呈现的部分（如大量内心独白），并给出改编建议。"
+    )
+
+    user_content = f"# Original Novel\n\n{novel}\n\n# Analysis Task\n\n{analysis_prompt}"
+    messages.append({"role": "user", "content": user_content})
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"novel_analysis": content.strip()}
 
 
 async def _step_generate_novel_tweet(
@@ -602,6 +670,7 @@ _STEP_REGISTRY = {
     "generate_volume_outline": _step_generate_volume_outline,
     "generate_character_rules": _step_generate_character_rules,
     "generate_script": _step_generate_script,
+    "generate_analyze_novel": _step_analyze_novel,
     "generate_novel_tweet": _step_generate_novel_tweet,
     "generate_video_tweet": _step_generate_video_tweet,
     "generate_storyboard": _step_generate_storyboard,
@@ -617,6 +686,7 @@ _STEP_WEIGHTS = {
     "generate_outline": 10.0,
     "generate_volume_outline": 15.0,
     "generate_character_rules": 10.0,
+    "generate_analyze_novel": 15.0,
     "generate_script": 10.0,
     "generate_novel_tweet": 10.0,
     "generate_video_tweet": 10.0,
@@ -637,7 +707,8 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_outline_only": ["search_reference_novels", "generate_outline"],
     "generate_volume_outline_only": ["search_reference_novels", "generate_outline", "generate_volume_outline"],
     "generate_character_rules_only": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_character_rules"],
-    "generate_script": ["generate_novel", "generate_novel_tweet", "generate_video_tweet", "generate_storyboard"],
+    "generate_analyze_novel": ["generate_novel", "generate_analyze_novel"],
+    "generate_script": ["generate_novel", "generate_analyze_novel", "generate_script"],
     "generate_novel_tweet": ["generate_novel", "generate_novel_tweet"],
     "generate_video_tweet": ["generate_novel_tweet", "generate_video_tweet"],
     "generate_storyboard": ["generate_video_tweet", "generate_storyboard"],
@@ -806,6 +877,18 @@ def workflow_generate_song(task_id: str, user_id: str, input_params: dict) -> di
 def workflow_generate_video(task_id: str, user_id: str, input_params: dict) -> dict:
     """Full pipeline: search refs → novel → script → lyrics → song → image → video."""
     steps = _WORKFLOWS["generate_video"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_analyze_novel",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_analyze_novel(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Step: generate novel → analyze novel for core elements."""
+    steps = _WORKFLOWS["generate_analyze_novel"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

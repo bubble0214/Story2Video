@@ -101,7 +101,7 @@ services:
     command: >
       sh -c "celery -A app.core.celery:celery_app worker
              --loglevel=info
-             --queues=default,novel_generation,lyrics_generation,music_generation,video_generation,dead_letter"
+             --queues=default,novel_generation,script_generation,lyrics_generation,music_generation,image_generation,video_generation,dead_letter"
     restart: unless-stopped
 
 volumes:

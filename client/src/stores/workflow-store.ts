@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { WorkflowMode, WorkflowState } from '@/types/workflow';
+import type { WorkflowMode, WorkflowState, CharacterSettings } from '@/types/workflow';
 import type { WorkflowType } from '@/types/task';
 import { WORKFLOW_MODE_TO_TYPE } from '@/types/workflow';
 
@@ -16,9 +16,16 @@ interface WorkflowStore extends WorkflowState {
   setCharacterRulesContent: (content: string) => void;
   addCompletedStep: (type: WorkflowType) => void;
   setCurrentTaskId: (taskId: string | null) => void;
+  setCharacterSettings: (settings: CharacterSettings) => void;
   reset: () => void;
   getWorkflowType: () => WorkflowType;
 }
+
+const initialCharacterSettings: CharacterSettings = {
+  genre: '',
+  format: '',
+  tone: '',
+};
 
 const initialState: WorkflowState = {
   keywords: '',
@@ -33,6 +40,7 @@ const initialState: WorkflowState = {
   outlineContent: '',
   volumeOutlineContent: '',
   characterRulesContent: '',
+  characterSettings: { ...initialCharacterSettings },
 };
 
 export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
@@ -57,6 +65,8 @@ export const useWorkflowStore = create<WorkflowStore>()((set, get) => ({
   setCurrentTaskId: (currentTaskId) => set({ currentTaskId }),
 
   getWorkflowType: () => WORKFLOW_MODE_TO_TYPE[get().workflowMode] ?? 'generate_script',
+
+  setCharacterSettings: (characterSettings) => set({ characterSettings }),
 
   reset: () => set(initialState),
 }));

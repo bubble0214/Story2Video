@@ -78,6 +78,11 @@ celery_app.conf.update(
             "routing_key": "script_generation",
             "priority": 6,
         },
+        "workflow_generate_analyze_novel": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
+        },
         "workflow_generate_lyrics": {
             "queue": "lyrics_generation",
             "routing_key": "lyrics_generation",

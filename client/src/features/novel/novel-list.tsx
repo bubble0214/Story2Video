@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { novelsApi } from '@/services/novels';
+import { draftsApi } from '@/services/drafts';
 import { promptsApi } from '@/services/prompts';
 import { tasksApi } from '@/services/tasks';
 import { useWorkflowStore } from '@/stores/workflow-store';
@@ -91,6 +92,23 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
     custom_prompt: customPrompt.trim(),
     ...(genModel ? { model: genModel } : {}),
   }), [referenceData, customPrompt, genModel]);
+
+  // ── Auto-extract title from outline content ──
+  useEffect(() => {
+    if (!outlineContent?.trim()) return;
+    console.log('[NovelList] outlineContent changed, first line:', outlineContent.split('\n')[0]);
+    console.log('[NovelList] current draftTitle:', draftTitle);
+    const match = outlineContent.match(/^#\s+(.+)$/m);
+    console.log('[NovelList] regex match:', match ? match[1].trim() : 'no match');
+    if (match && match[1].trim()) {
+      const title = match[1].trim();
+      setDraftTitle(title);
+      if (draftId) {
+        draftsApi.update(draftId, { title }).catch(() => {});
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outlineContent]);
 
   // ── Render states ──
   if (isLoading) {
@@ -232,12 +250,15 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
             className="flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
-            onBlur={() => {
+            onBlur={async () => {
               setEditingTitle(false);
               if (draftId && draftTitle.trim()) {
-                promptsApi.analyzeChapters({ chapters: [], chapter_count: 0 }).then(
-                  () => {}, // noop, just trigger a save
-                );
+                try {
+                  await draftsApi.update(draftId, { title: draftTitle.trim() });
+                  toast({ title: '标题已保存' });
+                } catch {
+                  // silent
+                }
               }
             }}
             onKeyDown={(e) => {

@@ -9,12 +9,16 @@ import type {
   GenerateChapterResp,
   SubmitVolumeDecisionResp,
   VolumeReviewDecisionReq,
+  UpsertDraftReq,
   UpdateDraftReq,
 } from '@/types/draft';
 
 export const draftsApi = {
   create: (body: CreateDraftReq) =>
     apiClient.post<Draft>('/v1/drafts/create', body),
+
+  upsert: (body: UpsertDraftReq) =>
+    apiClient.post<Draft>('/v1/drafts/upsert', body),
 
   list: (params?: { limit?: number; offset?: number; workflow_type?: string }) =>
     apiClient.get<DraftListItem[]>('/v1/drafts/list', { params }),

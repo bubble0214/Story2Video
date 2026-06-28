@@ -76,7 +76,7 @@ export default function ResultPage() {
 
   const result = task.result;
   const hasNovel = result.novel_content != null;
-  const hasScript = result.script_content != null || result.novel_tweet_content != null;
+  const hasScript = result.script_content != null;
   const hasLyrics = result.lyrics_content != null;
   const hasSong = result.audio_url != null || result.song_placeholder != null;
   const hasImage = result.image_url != null || result.image_placeholder != null;
@@ -138,8 +138,6 @@ export default function ResultPage() {
           <TabsContent value="script" className="mt-4">
             <ScriptTab
               content={(result.script_content as string) || '未生成剧本内容。'}
-              workflowType={task.workflow_type}
-              scriptContent={result as { novel_tweet_content?: string; video_tweet_content?: string; storyboard_content?: string }}
             />
           </TabsContent>
           <TabsContent value="lyrics" className="mt-4">

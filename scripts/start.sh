@@ -154,7 +154,7 @@ printf "\n--- [6/7] 启动前端 ---------------------------\033[33m\033[0m\n"
 stop_port "$FRONTEND_PORT"
 INFO "启动前端 (http://localhost:$FRONTEND_PORT) ..."
 cd "$CLIENT_DIR"
-nohup npm run dev -- -H 0.0.0.0 > "$PROJECT_ROOT/frontend.log" 2>&1 &
+nohup npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
 echo $! > "$PROJECT_ROOT/.frontend.pid"
 cd "$PROJECT_ROOT"
 sleep 3

@@ -181,7 +181,7 @@ if ($oldFront) {
 
 Write-Info "启动前端 (http://localhost:$FRONTEND_PORT) ..."
 $npmExe = (Get-Command "npm").Source
-Start-Process -FilePath $npmExe -ArgumentList "run dev" -WorkingDirectory $clientDir
+Start-Process -FilePath $npmExe -ArgumentList "run dev -- -H 0.0.0.0" -WorkingDirectory $clientDir
 
 Write-Ok "前端已启动。"
 

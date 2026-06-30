@@ -13,6 +13,7 @@ export type WorkflowType =
   | 'generate_video_tweet'
   | 'generate_storyboard'
   | 'generate_lyrics'
+  | 'extract_lyrics_core'
   | 'generate_song'
   | 'generate_image'
   | 'generate_video';

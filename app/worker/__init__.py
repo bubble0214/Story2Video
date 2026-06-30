@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.core.celery import celery_app as app
 from app.worker.tasks import (
+    workflow_extract_lyrics_core,
     workflow_generate_image,
     workflow_generate_lyrics,
     workflow_generate_novel,
@@ -22,6 +23,7 @@ from app.worker.tasks import (
 )
 
 __all__ = [
+    "workflow_extract_lyrics_core",
     "workflow_generate_image",
     "workflow_generate_novel",
     "workflow_generate_lyrics",

@@ -154,18 +154,7 @@ class LyricsPromptBuilder(BasePromptBuilder):
         language: str = "Chinese",
         **kwargs,
     ) -> list[dict]:
-        """Build a chat message list for lyrics generation.
-
-        Args:
-            theme: Core theme or subject of the song.
-            genre: Music genre (pop, rock, R&B, hip-hop, etc.).
-            structure: Song structure description.
-            mood: Emotional mood.
-            language: Output language.
-
-        Returns:
-            Message list compatible with BaseLLMProvider.chat() / stream().
-        """
+        """Build a chat message list for lyrics generation."""
         parts = [
             f"# Theme\n{theme}",
             f"# Genre\n{genre}",
@@ -179,4 +168,52 @@ class LyricsPromptBuilder(BasePromptBuilder):
         return [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user", "content": "\n\n".join(parts)},
+        ]
+
+
+class ExtractLyricsCorePromptBuilder(BasePromptBuilder):
+    """Build prompts for extracting song core elements from a script."""
+
+    SYSTEM_PROMPT = (
+        "You are a professional music producer and lyricist. Your job is to analyze a script "
+        "and extract the core elements needed to write a theme song for it. "
+        "Output your analysis in a structured format."
+    )
+
+    OUTPUT_FORMAT = """
+请按以下格式输出分析结果：
+
+【核心主题】
+（1-2句话概括）
+
+【情感基调】
+（如：悲壮但充满希望、黑暗悬疑、青春伤感等）
+
+【关键意象】
+- 意象1：描述
+- 意象2：描述
+- 意象3：描述
+
+【主角心路历程】
+（主角的核心矛盾或情感弧线）
+
+【演唱视角】
+（以谁的视角来唱，或第三人称旁观者视角）
+"""
+
+    def build(self, script_content: str, **kwargs) -> list[dict]:
+        user_prompt = (
+            "我正在为我的剧本创作一首主题曲。请仔细阅读以下剧本内容，并提炼出以下信息：\n\n"
+            "1. 核心主题（用1-2句话概括）\n"
+            "2. 情感基调（如：悲壮但充满希望、黑暗悬疑、青春伤感等）\n"
+            "3. 三个最关键的意象或画面（剧本里反复出现的物品、场景、颜色等）\n"
+            "4. 主角的心路历程或核心矛盾\n"
+            "5. 如果有特定人物视角，是以谁的视角来唱？或者以第三人称旁观者视角？\n\n"
+            f"剧本内容：\n```\n{script_content}\n```\n\n"
+            f"{self.OUTPUT_FORMAT}"
+        )
+
+        return [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
         ]

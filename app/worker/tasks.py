@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.providers.llm import LLMFactory
-from app.providers.prompt import LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
+from app.providers.prompt import ExtractLyricsCorePromptBuilder, LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
 from app.providers.prompt.novel import build_chapter_messages
 from app.repositories.novel import NovelRepository
 from app.repositories.task import TaskRepository
@@ -1164,6 +1164,28 @@ async def _step_generate_lyrics(
     return {"lyrics_content": content}
 
 
+async def _step_extract_lyrics_core(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Extract song core elements (theme, mood, imagery, etc.) from a script."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    script_content = input_params.get("script_content", "")
+    if not script_content:
+        raise ValueError("No script content provided for lyrics core extraction")
+
+    builder = ExtractLyricsCorePromptBuilder()
+    messages = builder.build(script_content=script_content)
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"lyrics_core_content": content}
+
+
 async def _step_generate_song(input_params: dict, context: dict) -> dict:
     """Generate a song / audio from lyrics.  Placeholder for TTS/MusicGen."""
     lyrics = context.get("lyrics_content", "")
@@ -1218,6 +1240,7 @@ _STEP_REGISTRY = {
     "generate_video_tweet": _step_generate_video_tweet,
     "generate_storyboard": _step_generate_storyboard,
     "generate_lyrics": _step_generate_lyrics,
+    "extract_lyrics_core": _step_extract_lyrics_core,
     "generate_song": _step_generate_song,
     "generate_image": _step_generate_image,
     "generate_video": _step_generate_video,
@@ -1240,6 +1263,7 @@ _STEP_WEIGHTS = {
     "generate_video_tweet": 10.0,
     "generate_storyboard": 10.0,
     "generate_lyrics": 15.0,
+    "extract_lyrics_core": 10.0,
     "generate_song": 10.0,
     "generate_image": 5.0,
     "generate_video": 5.0,
@@ -1266,6 +1290,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_video_tweet": ["generate_novel_tweet", "generate_video_tweet"],
     "generate_storyboard": ["generate_video_tweet", "generate_storyboard"],
     "generate_lyrics": ["search_reference_novels", "generate_lyrics"],
+    "extract_lyrics_core": ["extract_lyrics_core"],
     "generate_song": ["generate_lyrics", "generate_song"],
     "generate_image": ["generate_song", "generate_image"],
     "generate_video": [
@@ -1299,6 +1324,7 @@ _STEP_LABELS: dict[str, str] = {
     "generate_video_tweet": "生成视频推文",
     "generate_storyboard": "生成分镜",
     "generate_lyrics": "生成歌词",
+    "extract_lyrics_core": "提取歌曲内核",
     "generate_song": "生成歌曲",
     "generate_image": "生成图片",
     "generate_video": "生成视频",
@@ -1447,6 +1473,18 @@ def _run_workflow(task_id: str, user_id: str, steps: list[str], input_params: di
 def workflow_generate_lyrics(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: search reference novels → generate lyrics."""
     steps = _WORKFLOWS["generate_lyrics"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_extract_lyrics_core",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_extract_lyrics_core(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Workflow: extract song core elements from script content."""
+    steps = _WORKFLOWS["extract_lyrics_core"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

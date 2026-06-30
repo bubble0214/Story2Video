@@ -5,6 +5,7 @@ import { useTaskPoll } from '@/hooks/use-task-poll';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { WORKFLOW_TYPE_TO_MODE } from '@/types/workflow';
 
 interface TaskProgressProps {
   taskId: string;
@@ -92,7 +93,7 @@ export function TaskProgress({ taskId, onSuccess }: TaskProgressProps) {
             {task.status === 'SUCCESS' ? (
               <Button
                 className="flex-1"
-                onClick={() => router.push(`/result/${taskId}`)}
+                onClick={() => router.push(`/result-view/${WORKFLOW_TYPE_TO_MODE[task.workflow_type as keyof typeof WORKFLOW_TYPE_TO_MODE] ?? 'novel'}/${taskId}`)}
               >
                 查看结果
               </Button>

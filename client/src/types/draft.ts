@@ -132,6 +132,18 @@ export interface ChapterRevision {
   content: string;
 }
 
+// Interactive script generation types
+export interface ParsedSceneItem {
+  index: number;
+  num: string;
+  location: string;
+  scene_type: string;
+  summary: string;
+  characters: string;
+  raw: string;
+  status: 'pending' | 'generating' | 'completed' | 'failed';
+}
+
 export interface AnalyzeChaptersResp {
   report: string;
   revisions: ChapterRevision[];

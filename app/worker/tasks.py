@@ -346,49 +346,435 @@ async def _step_generate_character_rules(
 async def _step_generate_script(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
-    """Generate a script/screenplay from the novel content."""
+    """Generate a script/screenplay by generating each scene one by one.
+
+    When ``interactive`` is true and pre-generated scenes are provided,
+    skip LLM generation and compose the result from the provided content.
+    """
     if user_id is None:
         raise ValueError("User ID required to resolve LLM API key")
+
+    # Interactive finalize path: scenes were already generated in the frontend
+    if input_params.get("interactive"):
+        script_content = input_params.get("script_content", "")
+        generated_scenes = input_params.get("generated_scenes", {})
+        if script_content or generated_scenes:
+            scenes_list = [
+                {"num": str(k), "content": v}
+                for k, v in generated_scenes.items()
+                if v
+            ] if generated_scenes else []
+            return {
+                "script_content": script_content,
+                "generated_scenes": scenes_list,
+                "title": input_params.get("script_title", "未命名剧本"),
+            }
 
     novel = context.get("novel_content") or input_params.get("novel_content", "")
     if not novel:
         raise ValueError("No novel content provided for script generation")
 
-    # Inject character setting prompt as the first system message (role activation)
     character_prompt = input_params.get("character_setting_prompt", "").strip()
+    analysis = context.get("novel_analysis") or input_params.get("novel_analysis", "")
+    chosen = input_params.get("chosen_structure", "")
+    struct = input_params.get("structure_content", "")
+    scene_outline = context.get("scene_outline_content") or input_params.get("scene_outline_content", "")
 
-    builder = ScriptPromptBuilder()
-    messages = builder.build(
-        novel_content=novel,
-        title=input_params.get("title", ""),
-        style=input_params.get("script_style", ""),
-    )
+    if not scene_outline:
+        raise ValueError("Scene outline is required for scene-by-scene generation")
 
+    # Parse scenes from the outline — split by --- separator
+    raw_scenes = re.split(r'\n?-{3,}\n?', scene_outline)
+    scenes: list[dict] = []
+    for raw in raw_scenes:
+        raw = raw.strip()
+        if not raw:
+            continue
+        # Extract key fields
+        scene_num = ""
+        location = ""
+        summary = ""
+        characters = ""
+
+        for line in raw.split("\n"):
+            line_lower = line.strip().lower()
+            if line_lower.startswith("场号") or line_lower.startswith("场次"):
+                scene_num = line.split("：", 1)[-1].strip() if "：" in line else line.split(":", 1)[-1].strip()
+            elif line_lower.startswith("内外景") or line_lower.startswith("场景"):
+                pass
+            elif line_lower.startswith("地点"):
+                loc_val = line.split("：", 1)[-1].strip() if "：" in line else line.split(":", 1)[-1].strip()
+                if loc_val:
+                    location = loc_val
+            elif line_lower.startswith("时间"):
+                time_val = line.split("：", 1)[-1].strip() if "：" in line else line.split(":", 1)[-1].strip()
+                if time_val:
+                    location = f"{location} - {time_val}" if location else time_val
+            elif line_lower.startswith("梗概"):
+                summary = line.split("：", 1)[-1].strip() if "：" in line else line.split(":", 1)[-1].strip()
+            elif line_lower.startswith("人物"):
+                characters = line.split("：", 1)[-1].strip() if "：" in line else line.split(":", 1)[-1].strip()
+
+        if scene_num or summary:
+            scenes.append({
+                "raw": raw,
+                "num": scene_num,
+                "location": location,
+                "summary": summary,
+                "characters": characters,
+            })
+
+    if not scenes:
+        # Fallback: treat the entire outline as a single section
+        scenes = [{"raw": scene_outline, "num": "1", "location": "", "summary": "", "characters": ""}]
+
+    logger.info("Scene-by-scene generation: %d scenes parsed", len(scenes))
+
+    # Resolve LLM once
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    # Build base system messages (shared across all scene generations)
+    base_system_messages: list[dict] = []
     if character_prompt:
-        # Prepend the role-setting prompt as the very first system message
-        # so the AI adopts the screenwriter role before processing anything else
-        messages.insert(0, {"role": "system", "content": character_prompt})
+        base_system_messages.append({"role": "system", "content": character_prompt})
 
-    # Inject user's custom prompt as an additional instruction
-    user_prompt = input_params.get("prompt", "").strip()
-    if user_prompt:
+    base_system_messages.append({
+        "role": "system",
+        "content": (
+            "你现在是一位专业电影编剧。请根据分场大纲，逐场撰写完整剧本。\n\n"
+            "严格遵循电影剧本格式：\n"
+            "- 场景标题：场号. 内/外景 - 地点 - 时间（如：5. 内景 - 林家客厅 - 夜）\n"
+            "- 动作描述：以视觉化、现在时态描述画面，每段不超过4行\n"
+            "- 对白：人物名在上，对白在下，不添加引号\n"
+            "- 人物首次出场需大写并附简要描述\n"
+            "- 转场：注明'切至：'或'淡出'\n\n"
+            "风格要求：动作描写要有画面感和节奏感，台词要贴合人物设定，潜台词丰富。\n"
+            "请直接输出剧本内容，无需额外说明。"
+        ),
+    })
+    if analysis:
+        base_system_messages.append({"role": "assistant", "content": f"[核心要素分析参考]\n{analysis}"})
+
+    # Build shared context for the user message (novel + structure info)
+    context_parts = [f"# 原创小说\n\n{novel}"]
+    if chosen and struct:
+        context_parts.append(
+            f"# 用户选定的剧本结构方案\n\n"
+            f"用户选择了方案{chosen}，请严格按照此结构进行剧本创作：\n\n{struct}"
+        )
+    user_prompt_extra = input_params.get("prompt", "").strip()
+    if user_prompt_extra:
+        context_parts.append(
+            f"# Additional Optimization Instructions\n\n{user_prompt_extra}"
+        )
+    shared_context = "\n\n".join(context_parts)
+
+    # Generate scene by scene
+    total = len(scenes)
+    full_script_parts: list[str] = []
+    accumulated_script = ""  # fed back as context so the LLM stays consistent
+    _task_id = input_params.get("_task_id", "")
+    _session = input_params.get("_session")
+    _checkpoint = input_params.get("_checkpoint_data", {})
+
+    for idx, scene in enumerate(scenes):
+        scene_num = scene["num"] or str(idx + 1)
+        logger.info("Generating scene %s/%s (场号: %s)", idx + 1, total, scene_num)
+
+        # Update checkpoint to show progress
+        if _task_id and _session:
+            scene_progress = 10.0 + ((idx + 1) / total) * 80.0  # 10% → 90%
+            await _set_checkpoint(
+                UUID(_task_id), "RUNNING", scene_progress,
+                f"script: 第{scene_num}场/{total}场",
+                checkpoint=_checkpoint,
+                session=_session,
+            )
+
+        # Build messages for this scene
+        msgs = list(base_system_messages)
+
+        # Include previous script as context (last 2 scenes to stay within token limits)
+        if accumulated_script:
+            # Keep roughly the last 2 scenes
+            prev_scenes = full_script_parts[-2:] if len(full_script_parts) >= 2 else full_script_parts
+            prev_text = "\n\n".join(prev_scenes)
+            msgs.append({
+                "role": "assistant",
+                "content": f"[已生成的前续剧本，供保持连贯性参考]\n\n{prev_text}",
+            })
+
+        # Scene-specific instruction
+        scene_instruction = (
+            f"{shared_context}\n\n"
+            f"# 当前场次\n\n"
+            f"请撰写以下这一场戏的剧本内容：\n\n"
+            f"场号：{scene_num}\n"
+            f"{'地点：' + scene['location'] if scene['location'] else ''}\n"
+            f"{'梗概：' + scene['summary'] if scene['summary'] else ''}\n"
+            f"{'人物：' + scene['characters'] if scene['characters'] else ''}\n\n"
+            f"原始大纲参考：\n{scene['raw']}\n\n"
+            f"# 要求\n\n"
+            f"1. 只输出当前这场戏的剧本内容\n"
+            f"2. 严格按照格式：场号. 内/外景 - 地点 - 时间\n"
+            f"3. 动作描述以视觉化、现在时态，每段不超过4行\n"
+            f"4. 对白：人物名在上，对白在下\n"
+            f"5. 人物首次出场需大写并附简要描述\n"
+            f"6. 与前序场景在人物、时间线上保持连贯"
+        )
+        msgs.append({"role": "user", "content": scene_instruction})
+
+        scene_content = await provider.chat(msgs)
+        scene_content = scene_content.strip()
+
+        full_script_parts.append(scene_content)
+        accumulated_script = "\n\n".join(full_script_parts)
+
+        # Log progress
+        logger.info("Scene %s/%s generated (%d chars)", idx + 1, total, len(scene_content))
+
+    complete_script = "\n\n".join(full_script_parts)
+    return {"script_content": complete_script}
+
+
+async def _step_generate_single_scene(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate a single scene based on scene index (interactive mode)."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    scene_index = input_params.get("scene_index")
+    if scene_index is None:
+        raise ValueError("scene_index is required")
+    scene_raw = input_params.get("scene_raw", "")
+    if not scene_raw:
+        scene_raw = (
+            f"场号：{input_params.get('scene_num', scene_index + 1)}\n"
+            f"地点：{input_params.get('scene_location', '')}\n"
+            f"梗概：{input_params.get('scene_summary', '')}\n"
+            f"人物：{input_params.get('scene_characters', '')}"
+        )
+
+    scene_num = input_params.get("scene_num") or str(scene_index + 1)
+    location = input_params.get("scene_location", "")
+    summary = input_params.get("scene_summary", "")
+    characters = input_params.get("scene_characters", "")
+    accumulated_context = input_params.get("accumulated_context", "")
+    total_scenes = input_params.get("total_scenes", 0)
+
+    novel = context.get("novel_content") or input_params.get("novel_content", "")
+    character_prompt = input_params.get("character_setting_prompt", "").strip()
+    analysis = context.get("novel_analysis") or input_params.get("novel_analysis", "")
+    chosen = input_params.get("chosen_structure", "")
+    struct = input_params.get("structure_content", "")
+
+    # Resolve LLM
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    # Build system messages (same style as _step_generate_script)
+    messages: list[dict] = []
+    if character_prompt:
+        messages.append({"role": "system", "content": character_prompt})
+
+    messages.append({
+        "role": "system",
+        "content": (
+            "你现在是一位专业电影编剧。请根据分场大纲，逐场撰写完整剧本。\n\n"
+            "严格遵循电影剧本格式：\n"
+            "- 场景标题：场号. 内/外景 - 地点 - 时间（如：5. 内景 - 林家客厅 - 夜）\n"
+            "- 动作描述：以视觉化、现在时态描述画面，每段不超过4行\n"
+            "- 对白：人物名在上，对白在下，不添加引号\n"
+            "- 人物首次出场需大写并附简要描述\n"
+            "- 转场：注明'切至：'或'淡出'\n\n"
+            "风格要求：动作描写要有画面感和节奏感，台词要贴合人物设定，潜台词丰富。\n"
+            "请直接输出剧本内容，无需额外说明。"
+        ),
+    })
+    if analysis:
+        messages.append({"role": "assistant", "content": f"[核心要素分析参考]\n{analysis}"})
+
+    # Build context
+    context_parts = []
+    if novel:
+        context_parts.append(f"# 原创小说\n\n{novel}")
+    if chosen and struct:
+        context_parts.append(
+            f"# 用户选定的剧本结构方案\n\n"
+            f"用户选择了方案{chosen}，请严格按照此结构进行剧本创作：\n\n{struct}"
+        )
+    user_prompt_extra = input_params.get("prompt", "").strip()
+    if user_prompt_extra:
+        context_parts.append(f"# Additional Optimization Instructions\n\n{user_prompt_extra}")
+    shared_context = "\n\n".join(context_parts)
+
+    # Include previous script as context (last 2 scenes)
+    if accumulated_context:
         messages.append({
+            "role": "assistant",
+            "content": f"[已生成的前续剧本，供保持连贯性参考]\n\n{accumulated_context}",
+        })
+
+    # Scene-specific instruction — strongly emphasize single-scene output
+    scene_instruction = (
+        f"{shared_context}\n\n"
+        f"# 当前场次（第{scene_num}场/共{total_scenes}场）\n\n"
+        f"请只撰写以下这一场戏的剧本内容。只输出这一场，不要输出其他场次的内容。\n"
+        f"注意：严禁在输出中包含下一场或任何其他场次的剧本。\n\n"
+        f"场号：{scene_num}\n"
+    )
+    if location:
+        scene_instruction += f"地点：{location}\n"
+    if characters:
+        scene_instruction += f"人物：{characters}\n"
+    if summary:
+        scene_instruction += f"梗概：{summary}\n"
+    scene_instruction += f"\n原始大纲：\n{scene_raw}"
+
+    messages.append({"role": "user", "content": scene_instruction})
+
+    content = await provider.chat(messages)
+    stripped = content.strip()
+    if not stripped:
+        raise ValueError("LLM returned empty content for scene — generation failed")
+
+    return {"scene_content": stripped, "scene_index": scene_index}
+
+
+async def _step_scene_diagnosis(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Diagnose the last 10 scenes and return diagnosis + modified scenes."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    scenes_text = context.get("scenes_text") or input_params.get("scenes_text", "")
+    if not scenes_text:
+        raise ValueError("No scenes text provided for diagnosis")
+
+    messages: list[dict] = [
+        {
+            "role": "system",
+            "content": "你现在是一位资深剧本医生（Script Doctor），擅长对电影剧本进行专业诊断并给出修改方案。你的诊断必须直击要害、可操作。",
+        },
+        {
             "role": "user",
             "content": (
-                "# Additional Optimization Instructions\n\n"
-                f"{user_prompt}\n\n"
-                "Please apply the above optimization instructions when adapting the novel "
-                "into the script. Make sure the script follows these requirements while "
-                "maintaining proper screenplay format."
+                "# 待诊断剧本（最近10场）\n\n"
+                f"{scenes_text}\n\n"
+                "# 诊断任务\n\n"
+                "请对以上剧本进行全面诊断，包括以下四个方面：\n\n"
+                "## 1. 节奏诊断\n"
+                "指出节奏拖沓的场景，并提供两种删减或合并的思路。\n\n"
+                "## 2. 台词诊断\n"
+                "检验每句台词是否具有'动作性'（即是否能推动剧情或体现人物），标记出纯粹解释性的话语。\n\n"
+                "## 3. 人物弧光检查\n"
+                "检查主角从开头到结尾是否发生了根本性变化？缺少哪些转折点场景？\n\n"
+                "## 4. 视觉重复性检查\n"
+                "检查是否存在太多同类型的场景（如太多车内对话）？请给出替换建议。\n\n"
+                "请按以上四个部分输出诊断结果，每部分先给出总体判断，再列出具体问题点和修改建议。\n\n"
+                "## 修改方案\n\n"
+                "在诊断结束后，对于需要修改的场景，请输出修改后的版本。"
+                "格式：\n## 修改场景 X\n\n[修改后的完整剧本内容]\n\n"
+                "只输出确实需要修改的场景，无需修改的场景不要输出。"
             ),
-        })
+        },
+    ]
 
     llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
     if llm_provider == "custom":
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
-    return {"script_content": content}
+
+    # Parse modified scenes from the output
+    modified_scenes: dict[str, str] = {}
+    diagnosis_parts: list[str] = []
+    current_section: str | None = None
+    current_lines: list[str] = []
+
+    for line in content.split("\n"):
+        modified_match = re.match(r"^## 修改场景\s+(\d+)", line.strip())
+        if modified_match:
+            if current_section == "diagnosis" and current_lines:
+                diagnosis_parts.extend(current_lines)
+            elif current_section and current_section.startswith("modified_scene_") and current_lines:
+                modified_scenes[current_section.split("_", 2)[2]] = "\n".join(current_lines)
+            current_section = f"modified_scene_{modified_match.group(1)}"
+            current_lines = [line]
+        elif line.strip().startswith("## 修改方案") or line.strip().startswith("## 修改场景"):
+            if current_section == "diagnosis" and current_lines:
+                diagnosis_parts.extend(current_lines)
+            elif current_section and current_section.startswith("modified_scene_") and current_lines:
+                modified_scenes[current_section.split("_", 2)[2]] = "\n".join(current_lines)
+            current_section = "diagnosis" if line.strip().startswith("## 修改方案") else current_section
+            current_lines = [line]
+        else:
+            if current_section is None:
+                current_section = "diagnosis"
+            current_lines.append(line)
+
+    # Flush last section
+    if current_section == "diagnosis" and current_lines:
+        diagnosis_parts.extend(current_lines)
+    elif current_section and current_section.startswith("modified_scene_") and current_lines:
+        modified_scenes[current_section.split("_", 2)[2]] = "\n".join(current_lines)
+
+    diagnosis_text = "\n".join(diagnosis_parts)
+    return {
+        "script_diagnosis": diagnosis_text.strip(),
+        "modified_scenes": modified_scenes,
+    }
+
+
+async def _step_diagnose_script(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Diagnose the generated script as a script doctor."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    script = context.get("script_content") or input_params.get("script_content", "")
+    if not script:
+        raise ValueError("No script content provided for diagnosis")
+
+    messages: list[dict] = [
+        {
+            "role": "system",
+            "content": "你现在是一位资深剧本医生（Script Doctor），擅长对电影剧本进行专业诊断并给出修改方案。你的诊断必须直击要害、可操作。",
+        },
+        {
+            "role": "user",
+            "content": (
+                "# 待诊断剧本\n\n"
+                f"{script}\n\n"
+                "# 诊断任务\n\n"
+                "请对以上剧本进行全面诊断，包括以下四个方面：\n\n"
+                "## 1. 节奏诊断\n"
+                "指出节奏拖沓的场景，并提供两种删减或合并的思路。\n\n"
+                "## 2. 台词诊断\n"
+                "检验每句台词是否具有'动作性'（即是否能推动剧情或体现人物），标记出纯粹解释性的话语。\n\n"
+                "## 3. 人物弧光检查\n"
+                "检查主角从开头到结尾是否发生了根本性变化？缺少哪些转折点场景？\n\n"
+                "## 4. 视觉重复性检查\n"
+                "检查是否存在太多同类型的场景（如太多车内对话）？请给出替换建议。\n\n"
+                "请按以上四个部分输出诊断结果，每部分先给出总体判断，再列出具体问题点和修改建议。"
+            ),
+        },
+    ]
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"script_diagnosis": content.strip()}
 
 
 async def _step_analyze_novel(
@@ -404,6 +790,12 @@ async def _step_analyze_novel(
     """
     if user_id is None:
         raise ValueError("User ID required to resolve LLM API key")
+
+    # Passthrough: pre-existing analysis (interactive mode)
+    existing = input_params.get("novel_analysis") or context.get("novel_analysis")
+    if existing and existing.strip():
+        logger.info("_step_analyze_novel passthrough (%d chars)", len(existing))
+        return {"novel_analysis": existing.strip()}
 
     novel = context.get("novel_content") or input_params.get("novel_content", "")
     if not novel:
@@ -440,6 +832,152 @@ async def _step_analyze_novel(
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
     return {"novel_analysis": content.strip()}
+
+
+async def _step_generate_structure(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate two structural options (3-act and Blake Snyder Beat Sheet)."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    # Passthrough: pre-existing structure (interactive mode)
+    existing = input_params.get("structure_content") or context.get("structure_content")
+    if existing and existing.strip():
+        logger.info("_step_generate_structure passthrough (%d chars)", len(existing))
+        return {"structure_content": existing.strip()}
+
+    novel = context.get("novel_content") or input_params.get("novel_content", "")
+    if not novel:
+        raise ValueError("No novel content provided for structure generation")
+
+    analysis = context.get("novel_analysis") or input_params.get("novel_analysis", "")
+    character_prompt = input_params.get("character_setting_prompt", "").strip()
+
+    messages: list[dict] = []
+
+    if character_prompt:
+        messages.append({"role": "system", "content": character_prompt})
+    else:
+        messages.append({
+            "role": "system",
+            "content": "你现在是一位资深编剧顾问，擅长为小说改编剧本设计故事结构。",
+        })
+
+    analysis_section = ""
+    if analysis:
+        analysis_section = f"# 核心要素分析（供参考）\n\n{analysis}\n\n"
+
+    user_prompt = (
+        "请根据以下小说内容和核心要素分析，提供两套剧本结构方案。\n\n"
+        f"{analysis_section}"
+        "# 原创小说\n\n"
+        f"{novel}\n\n"
+        "# 结构设计任务\n\n"
+        "请设计以下两种结构方案：\n\n"
+        "**方案A：经典三幕剧结构**\n"
+        "请按以下格式输出：\n"
+        "| 幕 | 关键情节点 | 对应小说内容 | 高概念看点 |\n"
+        "|----|----------|------------|----------|\n"
+        "第一幕（建置） | 激励事件、第一幕转折点 | ... | ... |\n"
+        "第二幕（对抗） | 中点转折、一无所有时刻 | ... | ... |\n"
+        "第三幕（解决） | 高潮、结局 | ... | ... |\n\n"
+        "**方案B：Blake Snyder Beat Sheet 15节拍表**\n"
+        "请按以下格式输出（15个节拍）：\n"
+        "| 编号 | 节拍名称 | 页码位置 | 对应小说内容 | 高概念看点 |\n"
+        "|-----|---------|---------|------------|----------|\n"
+        "1 | 开场画面 | 第1页 | ... | ... |\n"
+        "2 | 主题呈现 | 第5页 | ... | ... |\n"
+        "...（共15个节拍，完整列出）...\n\n"
+        "要求：\n"
+        "1. 每个方案都要标注明确的\"高概念看点\"列，突出市场卖点\n"
+        "2. 方案A需标注每个情节点对应的小说原文位置或情节\n"
+        "3. 方案B需完整列出全部15个节拍，不可省略\n"
+        "4. 两种方案都要给出总体评价（适合什么类型的观众、独特优势）\n"
+        "5. 使用清晰的中文表格格式，便于阅读"
+    )
+    messages.append({"role": "user", "content": user_prompt})
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"structure_content": content.strip()}
+
+
+async def _step_generate_scene_outline(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate a detailed scene-by-scene outline based on chosen structure."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    # Passthrough: pre-existing scene outline (interactive mode)
+    existing = input_params.get("scene_outline_content") or context.get("scene_outline_content")
+    if existing and existing.strip():
+        logger.info("_step_generate_scene_outline passthrough (%d chars)", len(existing))
+        return {"scene_outline_content": existing.strip()}
+
+    novel = context.get("novel_content") or input_params.get("novel_content", "")
+    if not novel:
+        raise ValueError("No novel content provided for scene outline generation")
+
+    analysis = context.get("novel_analysis") or input_params.get("novel_analysis", "")
+    structure = context.get("structure_content") or input_params.get("structure_content", "")
+    chosen = context.get("chosen_structure") or input_params.get("chosen_structure", "")
+    character_prompt = input_params.get("character_setting_prompt", "").strip()
+
+    if not structure or not chosen:
+        raise ValueError("Structure content and chosen structure required for scene outline generation")
+
+    messages: list[dict] = []
+    if character_prompt:
+        messages.append({"role": "system", "content": character_prompt})
+    else:
+        messages.append({
+            "role": "system",
+            "content": "你现在是一位资深影视编剧兼导演，擅长将剧本结构转化为详细的分场大纲。",
+        })
+
+    analysis_section = ""
+    if analysis:
+        analysis_section = f"# 核心要素分析（供参考）\n\n{analysis}\n\n"
+
+    user_prompt = (
+        "请根据以下小说内容和选定的剧本结构方案，写一份详细的分场大纲。\n\n"
+        f"{analysis_section}"
+        "# 原创小说\n\n"
+        f"{novel}\n\n"
+        f"# 用户选定的结构方案（方案{chosen}）\n\n"
+        f"{structure}\n\n"
+        "# 分场大纲设计任务\n\n"
+        "我选择方案{chosen}的结构。现在请根据这个结构，写一份详细的分场大纲。\n\n"
+        "要求：\n"
+        "1. 严格按场景（Scene）列出，每场包含：场号、内外景、地点、时间、一句话剧情梗概、出场人物。\n\n"
+        "2. 重点突出视觉化呈现，避免任何依赖内心独白的戏。\n\n"
+        "3. 将原著超过3页的对话压缩为戏剧冲突更强的台词。\n\n"
+        "4. 删减次要人物或支线，如有必要，将其功能合并到其他场景中。\n\n"
+        "5. 全片大纲控制在40-60场左右。\n\n"
+        "请严格使用以下格式输出每场，不要添加额外格式：\n"
+        "---\n"
+        "场号：1\n"
+        "内外景：内景\n"
+        "地点：具体地点\n"
+        "时间：日/夜\n"
+        "梗概：一句话概括本场发生什么\n"
+        "人物：出场人物列表\n"
+        "---\n"
+        "不要使用'剧情梗概'或其他变体，key统一为：场号、内外景、地点、时间、梗概、人物。每场以 --- 分隔。"
+    )
+    messages.append({"role": "user", "content": user_prompt})
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"scene_outline_content": content.strip()}
 
 
 async def _step_generate_novel_tweet(
@@ -670,7 +1208,12 @@ _STEP_REGISTRY = {
     "generate_volume_outline": _step_generate_volume_outline,
     "generate_character_rules": _step_generate_character_rules,
     "generate_script": _step_generate_script,
+    "generate_single_scene": _step_generate_single_scene,
+    "generate_scene_diagnosis": _step_scene_diagnosis,
     "generate_analyze_novel": _step_analyze_novel,
+    "generate_script_structure": _step_generate_structure,
+    "generate_scene_outline": _step_generate_scene_outline,
+    "generate_script_diagnosis": _step_diagnose_script,
     "generate_novel_tweet": _step_generate_novel_tweet,
     "generate_video_tweet": _step_generate_video_tweet,
     "generate_storyboard": _step_generate_storyboard,
@@ -687,7 +1230,12 @@ _STEP_WEIGHTS = {
     "generate_volume_outline": 15.0,
     "generate_character_rules": 10.0,
     "generate_analyze_novel": 15.0,
+    "generate_script_structure": 10.0,
+    "generate_scene_outline": 15.0,
     "generate_script": 10.0,
+    "generate_single_scene": 5.0,
+    "generate_scene_diagnosis": 10.0,
+    "generate_script_diagnosis": 10.0,
     "generate_novel_tweet": 10.0,
     "generate_video_tweet": 10.0,
     "generate_storyboard": 10.0,
@@ -708,7 +1256,12 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_volume_outline_only": ["search_reference_novels", "generate_outline", "generate_volume_outline"],
     "generate_character_rules_only": ["search_reference_novels", "generate_outline", "generate_volume_outline", "generate_character_rules"],
     "generate_analyze_novel": ["generate_novel", "generate_analyze_novel"],
-    "generate_script": ["generate_novel", "generate_analyze_novel", "generate_script"],
+    "generate_script_structure": ["generate_novel", "generate_analyze_novel", "generate_script_structure"],
+    "generate_scene_outline": ["generate_novel", "generate_analyze_novel", "generate_script_structure", "generate_scene_outline"],
+    "generate_script": ["generate_novel", "generate_analyze_novel", "generate_script_structure", "generate_scene_outline", "generate_script"],
+    "generate_single_scene": ["generate_single_scene"],
+    "generate_scene_diagnosis": ["generate_scene_diagnosis"],
+    "generate_script_diagnosis": ["generate_script_diagnosis"],
     "generate_novel_tweet": ["generate_novel", "generate_novel_tweet"],
     "generate_video_tweet": ["generate_novel_tweet", "generate_video_tweet"],
     "generate_storyboard": ["generate_video_tweet", "generate_storyboard"],
@@ -724,6 +1277,31 @@ _WORKFLOWS: dict[str, list[str]] = {
         "generate_image",
         "generate_video",
     ],
+}
+
+
+# ── Human-readable step labels ──────────────────────────────────────────
+
+_STEP_LABELS: dict[str, str] = {
+    "search_reference_novels": "搜索参考小说",
+    "generate_novel": "生成小说",
+    "generate_outline": "生成大纲",
+    "generate_volume_outline": "生成分卷大纲",
+    "generate_character_rules": "生成角色设定",
+    "generate_analyze_novel": "分析小说要素",
+    "generate_script_structure": "生成剧本结构",
+    "generate_scene_outline": "生成分场大纲",
+    "generate_script": "生成完整剧本",
+    "generate_single_scene": "生成单场剧本",
+    "generate_scene_diagnosis": "场景诊断",
+    "generate_script_diagnosis": "全剧诊断",
+    "generate_novel_tweet": "生成推文",
+    "generate_video_tweet": "生成视频推文",
+    "generate_storyboard": "生成分镜",
+    "generate_lyrics": "生成歌词",
+    "generate_song": "生成歌曲",
+    "generate_image": "生成图片",
+    "generate_video": "生成视频",
 }
 
 
@@ -756,7 +1334,19 @@ async def _run_workflow_async(
     completed_weight = checkpoint.get("completed_weight", 0.0)
 
     # Mark RUNNING
-    await _set_checkpoint(task_uuid, "RUNNING", task_data["progress"], steps[0] if steps else "", session=session)
+    first_label = _STEP_LABELS.get(steps[0], steps[0]) if steps else ""
+    await _set_checkpoint(task_uuid, "RUNNING", task_data["progress"], first_label, session=session)
+
+    # Interactive finalize: skip all upstream steps, go directly to generate_script
+    if input_params.get("interactive") and "generate_script" in steps:
+        script_step = "generate_script"
+        for s in steps:
+            if s == script_step:
+                break
+            if s not in completed_steps:
+                completed_steps.add(s)
+                completed_weight += _STEP_WEIGHTS.get(s, 0)
+                logger.info("Interactive: skipping upstream step '%s'", s)
 
     for step_name in steps:
         if step_name in completed_steps:
@@ -765,11 +1355,14 @@ async def _run_workflow_async(
 
         step_fn = _STEP_REGISTRY[step_name]
         step_weight = _STEP_WEIGHTS[step_name]
-        progress = min((completed_weight / total_weight) * 100, 99.0)
+        # Show partial progress within the step itself — start at a
+        # baseline that accounts for "this step has begun" rather than 0.
+        progress = min(((completed_weight + step_weight * 0.05) / total_weight) * 100, 99.0)
 
         try:
+            step_label = _STEP_LABELS.get(step_name, step_name)
             await _set_checkpoint(
-                task_uuid, "RUNNING", progress, step_name,
+                task_uuid, "RUNNING", progress, step_label,
                 checkpoint={**checkpoint, "context": context},
                 session=session,
             )
@@ -789,7 +1382,7 @@ async def _run_workflow_async(
 
             progress = min((completed_weight / total_weight) * 100, 99.0)
             await _set_checkpoint(
-                task_uuid, "RUNNING", progress, step_name,
+                task_uuid, "RUNNING", progress, step_label,
                 checkpoint=checkpoint,
                 session=session,
             )
@@ -797,7 +1390,7 @@ async def _run_workflow_async(
         except Exception as exc:
             logger.exception("Step '%s' failed for task %s", step_name, task_id)
             await _set_checkpoint(
-                task_uuid, "FAILED", progress, step_name,
+                task_uuid, "FAILED", progress, step_label,
                 error=f"Step '{step_name}' failed: {exc}",
                 checkpoint=checkpoint,
                 session=session,
@@ -805,8 +1398,9 @@ async def _run_workflow_async(
             raise
 
     # SUCCESS
+    last_label = _STEP_LABELS.get(steps[-1], steps[-1]) if steps else ""
     await _set_checkpoint(
-        task_uuid, "SUCCESS", 100.0, steps[-1],
+        task_uuid, "SUCCESS", 100.0, last_label,
         checkpoint=checkpoint,
         result=context,
         session=session,
@@ -893,6 +1487,30 @@ def workflow_generate_analyze_novel(task_id: str, user_id: str, input_params: di
 
 
 @celery_app.task(
+    name="workflow_generate_script_structure",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_script_structure(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Step: generate novel → analyze novel → generate structure options."""
+    steps = _WORKFLOWS["generate_script_structure"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_scene_outline",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_scene_outline(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Step: generate novel → analyze novel → generate structure → generate scene outline."""
+    steps = _WORKFLOWS["generate_scene_outline"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
     name="workflow_generate_novel_tweet",
     acks_late=True,
     soft_time_limit=300,
@@ -931,8 +1549,8 @@ def workflow_generate_storyboard(task_id: str, user_id: str, input_params: dict)
 @celery_app.task(
     name="workflow_generate_script",
     acks_late=True,
-    soft_time_limit=1200,
-    time_limit=1800,
+    soft_time_limit=3600,
+    time_limit=4800,
 )
 def workflow_generate_script(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate novel → generate script."""
@@ -949,6 +1567,42 @@ def workflow_generate_script(task_id: str, user_id: str, input_params: dict) -> 
 def workflow_generate_image(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate song → generate image."""
     steps = _WORKFLOWS["generate_image"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_single_scene",
+    acks_late=True,
+    soft_time_limit=120,
+    time_limit=300,
+)
+def workflow_generate_single_scene(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Generate a single scene (interactive mode)."""
+    steps = _WORKFLOWS["generate_single_scene"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_scene_diagnosis",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_scene_diagnosis(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Diagnose scenes and return diagnosis + modified scenes (interactive mode)."""
+    steps = _WORKFLOWS["generate_scene_diagnosis"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_script_diagnosis",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_script_diagnosis(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Standalone: diagnose an already-generated script for pacing, dialogue, arc, visual variety."""
+    steps = _WORKFLOWS["generate_script_diagnosis"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

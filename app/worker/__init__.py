@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.core.celery import celery_app as app
 from app.worker.tasks import (
     workflow_generate_image,
     workflow_generate_lyrics,
@@ -11,6 +12,11 @@ from app.worker.tasks import (
     workflow_generate_character_rules_only,
     workflow_generate_novel_with_character_rules,
     workflow_generate_script,
+    workflow_generate_script_structure,
+    workflow_generate_scene_outline,
+    workflow_generate_script_diagnosis,
+    workflow_generate_single_scene,
+    workflow_generate_scene_diagnosis,
     workflow_generate_song,
     workflow_generate_video,
 )
@@ -26,6 +32,11 @@ __all__ = [
     "workflow_generate_character_rules_only",
     "workflow_generate_novel_with_character_rules",
     "workflow_generate_script",
+    "workflow_generate_script_structure",
+    "workflow_generate_scene_outline",
+    "workflow_generate_script_diagnosis",
+    "workflow_generate_single_scene",
+    "workflow_generate_scene_diagnosis",
     "workflow_generate_song",
     "workflow_generate_video",
 ]

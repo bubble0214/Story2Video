@@ -97,7 +97,7 @@ export default function HomePage() {
               return (
                 <Link
                   key={task.id}
-                  href={`/result/${task.id}`}
+                  href={`/result-view/${mode}/${task.id}`}
                   className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                 >
                   <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />

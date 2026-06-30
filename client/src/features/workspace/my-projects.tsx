@@ -124,7 +124,7 @@ export function MyProjects({ workflowType }: MyProjectsProps) {
                 <Link
                   href={
                     task.status === 'SUCCESS'
-                      ? `/result/${task.id}`
+                      ? `/result-view/${mode}/${task.id}`
                       : `/task/${task.id}`
                   }
                 >

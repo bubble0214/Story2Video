@@ -57,7 +57,7 @@ export function RecentProjects() {
           return (
             <Link
               key={task.id}
-              href={`/result/${task.id}`}
+              href={`/result-view/${mode}/${task.id}`}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted transition-colors"
             >
               <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3004", "http://localhost:8001"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3004", "http://localhost:3005", "http://localhost:8001"]
 
     # Celery
     celery_broker_url: str = ""

@@ -277,7 +277,7 @@ export default function AssetCategoryPage() {
                 className="group flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
               >
                 <Link
-                  href={`/result/${task.id}`}
+                  href={`/result-view/${WORKFLOW_TYPE_TO_MODE[task.workflow_type as keyof typeof WORKFLOW_TYPE_TO_MODE] || mode}/${task.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
                   <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />

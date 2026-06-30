@@ -78,7 +78,22 @@ celery_app.conf.update(
             "routing_key": "script_generation",
             "priority": 6,
         },
+        "workflow_generate_script_structure": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
+        },
+        "workflow_generate_scene_outline": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
+        },
         "workflow_generate_analyze_novel": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
+        },
+        "workflow_generate_script_diagnosis": {
             "queue": "script_generation",
             "routing_key": "script_generation",
             "priority": 6,
@@ -102,6 +117,16 @@ celery_app.conf.update(
             "queue": "video_generation",
             "routing_key": "video_generation",
             "priority": 8,
+        },
+        "workflow_generate_single_scene": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
+        },
+        "workflow_generate_scene_diagnosis": {
+            "queue": "script_generation",
+            "routing_key": "script_generation",
+            "priority": 6,
         },
     },
     task_soft_time_limit=3600,

@@ -9,7 +9,7 @@ import { tasksApi } from '@/services/tasks';
 import { draftsApi } from '@/services/drafts';
 import { WORKFLOW_MODE_TO_TYPE, WORKFLOW_TYPE_TO_MODE } from '@/types/workflow';
 import { Button } from '@/components/ui/button';
-import { PenLine, FileText, Music, Image, Video, ArrowLeft, Trash2, Plus, type LucideIcon } from 'lucide-react';
+import { PenLine, FileText, Music, Image, Video, Scroll, Clapperboard, ArrowLeft, Trash2, Plus, type LucideIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import type { TaskResp } from '@/types/task';
 import type { DraftListItem } from '@/types/draft';
@@ -17,24 +17,51 @@ import type { DraftListItem } from '@/types/draft';
 const MODE_LABELS: Record<string, string> = {
   novel: '小说',
   script: '剧本',
-  lyrics: '歌词',
+  'script-gen': '脚本',
+  lyrics: '歌曲',
   song: '歌曲',
   image: '图片',
+  mv: 'MV',
   video: '视频',
 };
 
 const MODE_ICONS: Record<string, LucideIcon> = {
   novel: PenLine,
   script: FileText,
-  lyrics: FileText,
+  'script-gen': Scroll,
+  lyrics: Music,
   song: Music,
   image: Image,
+  mv: Clapperboard,
   video: Video,
+};
+
+const MODE_PATHS: Record<string, string> = {
+  novel: '/workflow/novel',
+  script: '/workflow/script',
+  'script-gen': '/workflow/script',
+  lyrics: '/workflow/song',
+  song: '/workflow/song',
+  image: '/workflow/image',
+  mv: '/workflow/mv',
+  video: '/workflow/video',
 };
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function extractTitle(task: TaskResp): string {
+  const lyricsContent = task.result?.lyrics_content;
+  if (typeof lyricsContent === 'string') {
+    const match = lyricsContent.match(/【歌曲名称】(.+?)(?:\n|$)/);
+    if (match) return match[1].trim();
+  }
+  if (task.workflow_type === 'generate_song') {
+    return '生成的歌曲';
+  }
+  return (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
 }
 
 function getStepLabel(draft: DraftListItem): string {
@@ -139,7 +166,7 @@ export default function AssetCategoryPage() {
             onClick={() => {
               // Clear session storage so the workflow page creates a fresh draft
               try { sessionStorage.removeItem(`active_draft_${mode}`); } catch {}
-              router.push(`/workflow/${mode}`);
+              router.push(MODE_PATHS[mode] ?? `/workflow/${mode}`);
             }}
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -178,7 +205,7 @@ export default function AssetCategoryPage() {
                 className="group flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 hover:bg-primary/10 transition-colors"
               >
                 <Link
-                  href={`/workflow/${WORKFLOW_TYPE_TO_MODE[draft.workflow_type] ?? draft.workflow_type}?draft=${draft.id}`}
+                  href={`${MODE_PATHS[draft.workflow_type] ?? `/workflow/${draft.workflow_type}`}?draft=${draft.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
                   <Icon className="h-5 w-5 shrink-0 text-primary" />
@@ -220,7 +247,7 @@ export default function AssetCategoryPage() {
                 className="group flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
               >
                 <Link
-                  href={`/workflow/${WORKFLOW_TYPE_TO_MODE[draft.workflow_type] ?? draft.workflow_type}?draft=${draft.id}`}
+                  href={`${MODE_PATHS[draft.workflow_type] ?? `/workflow/${draft.workflow_type}`}?draft=${draft.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
                   <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
@@ -258,7 +285,7 @@ export default function AssetCategoryPage() {
             还没有生成{label}
           </p>
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/workflow/${mode}`}>
+            <Link href={MODE_PATHS[mode] ?? `/workflow/${mode}`}>
               去生成{label}
             </Link>
           </Button>
@@ -270,35 +297,51 @@ export default function AssetCategoryPage() {
         <div className="space-y-2">
           <h2 className="text-lg font-semibold tracking-tight">已生成的{label}</h2>
           {successItems.map((task: TaskResp) => {
-            const title = (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
+            const title = extractTitle(task);
+            const lyricsContent = task.result?.lyrics_content as string | undefined;
+            const songAudioUrl = task.result?.song_audio_url as string | undefined;
             return (
               <div
                 key={task.id}
-                className="group flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                className="group rounded-lg border p-4 hover:bg-muted/50 transition-colors"
               >
-                <Link
-                  href={`/result-view/${WORKFLOW_TYPE_TO_MODE[task.workflow_type as keyof typeof WORKFLOW_TYPE_TO_MODE] || mode}/${task.id}`}
-                  className="flex items-center gap-3 flex-1 min-w-0"
-                >
-                  <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 truncate font-medium">{title}</span>
-                  <span className="text-sm text-muted-foreground shrink-0">
-                    {formatDate(task.created_at)}
-                  </span>
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => {
-                    if (confirm('确定要删除这个项目吗？')) {
-                      deleteMutation.mutate(task.id);
-                    }
-                  }}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/result-view/${WORKFLOW_TYPE_TO_MODE[task.workflow_type as keyof typeof WORKFLOW_TYPE_TO_MODE] || mode}/${task.id}`}
+                    className="flex items-center gap-3 flex-1 min-w-0"
+                  >
+                    <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate font-medium">{title}</span>
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      {formatDate(task.created_at)}
+                    </span>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      if (confirm('确定要删除这个项目吗？')) {
+                        deleteMutation.mutate(task.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {lyricsContent && (
+                  <div className="mt-3 rounded-md bg-muted/30 p-3">
+                    <pre className="text-sm whitespace-pre-wrap leading-relaxed font-sans">
+                      {lyricsContent}
+                    </pre>
+                  </div>
+                )}
+                {songAudioUrl && (
+                  <div className="mt-3 rounded-md bg-muted/30 p-3">
+                    <audio controls src={songAudioUrl} className="w-full" />
+                  </div>
+                )}
               </div>
             );
           })}

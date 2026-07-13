@@ -1,13 +1,15 @@
 import type { WorkflowType } from './task';
 
-export type WorkflowMode = 'novel' | 'script' | 'lyrics' | 'song' | 'image' | 'video';
+export type WorkflowMode = 'novel' | 'script' | 'script-gen' | 'lyrics' | 'song' | 'image' | 'video' | 'mv';
 
 export const WORKFLOW_MODE_TO_TYPE: Partial<Record<WorkflowMode, WorkflowType>> = {
   script: 'generate_script',
+  'script-gen': 'generate_script',
   lyrics: 'generate_lyrics',
   song: 'generate_song',
   image: 'generate_image',
   video: 'generate_video',
+  mv: 'generate_mv',
 };
 
 export const WORKFLOW_TYPE_TO_MODE: Record<string, WorkflowMode> = {
@@ -17,6 +19,7 @@ export const WORKFLOW_TYPE_TO_MODE: Record<string, WorkflowMode> = {
   generate_song: 'song',
   generate_image: 'image',
   generate_video: 'video',
+  generate_mv: 'mv',
 };
 
 export interface CharacterSettings {

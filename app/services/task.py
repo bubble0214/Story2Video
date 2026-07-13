@@ -27,8 +27,11 @@ class TaskService:
         "generate_lyrics": "workflow_generate_lyrics",
         "extract_lyrics_core": "workflow_extract_lyrics_core",
         "generate_song": "workflow_generate_song",
+        "generate_music_style": "workflow_generate_music_style",
         "generate_image": "workflow_generate_image",
         "generate_video": "workflow_generate_video",
+        "generate_mv": "workflow_generate_mv",
+        "generate_mv_storyboard": "workflow_generate_mv_storyboard",
     }
 
     def __init__(self, repo: TaskRepository) -> None:
@@ -77,9 +80,13 @@ class TaskService:
             "generate_storyboard": "script_generation",
             "generate_lyrics": "lyrics_generation",
             "extract_lyrics_core": "lyrics_generation",
+            "plan_lyrics_structure": "lyrics_generation",
+            "generate_music_style": "lyrics_generation",
             "generate_song": "music_generation",
             "generate_image": "image_generation",
             "generate_video": "video_generation",
+            "generate_mv": "video_generation",
+            "generate_mv_storyboard": "script_generation",
         }
         return queue_map[workflow_type]
 

@@ -410,13 +410,21 @@ class TestWorkflowSteps:
 
     @pytest.mark.asyncio
     async def test_step_generate_video(self) -> None:
+        """_step_generate_video raises error when no Coze API key is configured."""
+        from unittest.mock import patch
+
         from app.worker.tasks import _step_generate_video
 
-        result = await _step_generate_video(
-            {},
-            {"novel_content": "story", "lyrics_content": "lyrics"},
-        )
-        assert result["video_placeholder"] is True
+        with patch(
+            "app.worker.tasks.get_user_coze_config",
+            return_value=None,
+        ):
+            with pytest.raises(ValueError, match="No Coze API key found"):
+                await _step_generate_video(
+                    {},
+                    {"novel_content": "story", "lyrics_content": "lyrics"},
+                    user_id=UUID("00000000-0000-0000-0000-000000000000"),
+                )
 
 
 class TestWorkflowEngine:

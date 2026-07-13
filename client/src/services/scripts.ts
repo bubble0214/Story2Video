@@ -16,6 +16,7 @@ export interface GenerateSceneReq {
   structure_content?: string;
   prompt?: string;
   model?: string;
+  storyboard_style_prompt?: string;
 }
 
 export interface DiagnoseReq {

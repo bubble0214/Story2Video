@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.providers.llm.base import BaseLLMProvider
 from app.providers.llm.claude import ClaudeProvider
+from app.providers.llm.coze import CozeProvider
 from app.providers.llm.deepseek import DeepSeekProvider
 from app.providers.llm.gemini import GeminiProvider
 from app.providers.llm.glm import GLMProvider
@@ -21,6 +22,7 @@ _PROVIDER_CLASSES: dict[str, type[BaseLLMProvider]] = {
     "deepseek": DeepSeekProvider,
     "qwen": QwenProvider,
     "glm": GLMProvider,
+    "coze": CozeProvider,
 }
 
 
@@ -85,6 +87,7 @@ class LLMFactory:
 __all__ = [
     "BaseLLMProvider",
     "LLMFactory",
+    "CozeProvider",
     "OpenAIProvider",
     "ClaudeProvider",
     "GeminiProvider",

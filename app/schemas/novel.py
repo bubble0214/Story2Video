@@ -15,6 +15,7 @@ class ImportNovelReq(BaseModel):
 
 class SearchNovelReq(BaseModel):
     keywords: list[str] = Field(..., min_length=1)
+    model: str | None = Field(default=None)
 
 
 class NovelResp(BaseModel):

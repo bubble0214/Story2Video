@@ -4,6 +4,11 @@ from app.providers.avatar import (
     DIDProvider,
     HeyGenProvider,
 )
+from app.providers.image import (
+    BaseImageProvider,
+    CozeImageProvider,
+    ImageFactory,
+)
 from app.providers.llm import (
     BaseLLMProvider,
     ClaudeProvider,
@@ -22,6 +27,11 @@ from app.providers.music import (
     MusicFactory,
     SunoProvider,
     UdioProvider,
+)
+from app.providers.video import (
+    BaseVideoProvider,
+    CozeVideoProvider,
+    VideoFactory,
 )
 
 __all__ = [
@@ -47,4 +57,12 @@ __all__ = [
     "AvatarFactory",
     "HeyGenProvider",
     "DIDProvider",
+    # Image
+    "BaseImageProvider",
+    "ImageFactory",
+    "CozeImageProvider",
+    # Video
+    "BaseVideoProvider",
+    "VideoFactory",
+    "CozeVideoProvider",
 ]

@@ -39,6 +39,7 @@ DEFAULT_MODELS: dict[str, str] = {
     "deepseek": "deepseek-v3",
     "qwen": "qwen-plus",
     "glm": "glm-4.7-flash",
+    "coze": "coze",
 }
 
 

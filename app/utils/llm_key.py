@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,14 @@ from app.utils.encryption import decrypt_to_plaintext
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class CozeConfig:
+    """Complete Coze configuration for a user."""
+    api_key: str
+    space_id: str | None = None
+    billing_project_id: str | None = None
+
+
 async def get_user_api_key_from_db(user_id: UUID, provider: str) -> str | None:
     """Retrieve the decrypted API key for a user+provider combo."""
     async with async_session_factory() as session:
@@ -19,6 +28,20 @@ async def get_user_api_key_from_db(user_id: UUID, provider: str) -> str | None:
         key_obj = await repo.get_by_user_and_provider(user_id, provider)
         if key_obj is not None and key_obj.encrypted_key:
             return decrypt_to_plaintext(key_obj.encrypted_key)
+    return None
+
+
+async def get_user_coze_config(user_id: UUID) -> CozeConfig | None:
+    """Retrieve the full Coze configuration (key + space_id + billing_project_id) for a user."""
+    async with async_session_factory() as session:
+        repo = ApiKeyRepository(session)
+        key_obj = await repo.get_by_user_and_provider(user_id, "coze")
+        if key_obj is not None and key_obj.encrypted_key:
+            return CozeConfig(
+                api_key=decrypt_to_plaintext(key_obj.encrypted_key),
+                space_id=key_obj.coze_space_id,
+                billing_project_id=key_obj.coze_billing_project_id,
+            )
     return None
 
 
@@ -86,7 +109,7 @@ async def resolve_user_llm_key(
     s = await _get_session()
     repo = ApiKeyRepository(s)
     all_keys = await repo.list_by_user(user_id)
-    # Prefer LLM providers (skip music/avatar-specific keys)
+    # Prefer LLM providers (skip music/avatar-specific keys; Coze excluded as Auto due to incompatible LLM interface)
     llm_providers = {"openai", "claude", "gemini", "deepseek", "qwen", "glm", "custom"}
     for key_obj in all_keys:
         if key_obj.provider in llm_providers and key_obj.encrypted_key:

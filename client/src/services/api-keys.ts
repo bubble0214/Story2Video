@@ -4,6 +4,10 @@ import type {
   ApiKeyResp,
   TestApiKeyReq,
   TestApiKeyResp,
+  CozeDiscoverReq,
+  CozeDiscoverResp,
+  CozeCreateBotReq,
+  CozeCreateBotResp,
 } from '@/types/api-key';
 
 export const apiKeysApi = {
@@ -20,4 +24,10 @@ export const apiKeysApi = {
 
   test: (data: TestApiKeyReq) =>
     apiClient.post<TestApiKeyResp>('/v1/api-keys/test', data),
+
+  discoverCoze: (data: CozeDiscoverReq) =>
+    apiClient.post<CozeDiscoverResp>('/v1/api-keys/coze/discover', data),
+
+  createCozeBot: (data: CozeCreateBotReq) =>
+    apiClient.post<CozeCreateBotResp>('/v1/api-keys/coze/create-bot', data),
 };

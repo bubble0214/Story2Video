@@ -59,7 +59,9 @@ async def search_novels(
     db: AsyncSession = Depends(get_db),
 ) -> list[SearchResultItem]:
     try:
-        llm_key, llm_provider, base_url, model = await resolve_user_llm_key(UUID(user_id))
+        llm_key, llm_provider, base_url, model = await resolve_user_llm_key(
+            UUID(user_id), input_params={"model": body.model} if body.model else None,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

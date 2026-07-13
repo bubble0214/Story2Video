@@ -20,6 +20,7 @@ function NovelPageInner() {
   const [submitted, setSubmitted] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(!!draftParam);
   const [restoredKeywords, setRestoredKeywords] = useState('');
+  const [llmModel, setLlmModel] = useState('');
   const loadedRef = useRef(false);
 
   // Reset workflow store on mount for a clean slate
@@ -88,7 +89,7 @@ function NovelPageInner() {
                   }}
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <ModelSelector value={''} onChange={() => {}} />
+                  <ModelSelector value={llmModel} onChange={setLlmModel} />
                 </div>
               </div>
               <Button onClick={handleSearch} disabled={!keywords.trim()}>
@@ -106,7 +107,7 @@ function NovelPageInner() {
       {showList && (
         <NovelList
           keywords={keywords}
-          selectedModel={''}
+          selectedModel={llmModel}
           initialDraftId={draftParam ?? undefined}
         />
       )}

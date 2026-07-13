@@ -11,5 +11,7 @@ class ApiKeyEntity:
     provider: str
     base_url: str | None = None
     model_name: str | None = None
+    coze_space_id: str | None = None
+    coze_billing_project_id: str | None = None
     decrypted_key: str | None = None
     created_at: datetime | None = None

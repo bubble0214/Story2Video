@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, Fragment } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import { tasksApi } from '@/services/tasks';
@@ -55,6 +55,12 @@ function buildCharacterPrompt(genre: string, format: string, tone: string): stri
   parts.push('在每次回复前，请先以编剧思维分析我的需求，再给出内容。');
   return parts.join('\n');
 }
+
+const STORYBOARD_STYLE_MAP: Record<string, string> = {
+  '真人': '真人实拍电影风格，写实光影，自然色彩，真实人物动作逻辑',
+  '2D': '2D动漫风格，手绘质感，平涂色彩，日系或国漫画风',
+  '3D': '3D动画渲染风格，立体建模，CG光影，风格化材质',
+};
 
 const ANALYSIS_SYSTEM_PROMPT =
   '请仔细阅读以上小说章节。作为编剧，请你完成以下分析：\n\n' +
@@ -126,6 +132,15 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number | null>(null);
   const [editingSceneContent, setEditingSceneContent] = useState('');
 
+  // ── Storyboard state ──
+  const [sceneStoryboards, setSceneStoryboards] = useState<Record<number, string>>({});
+  const [storyboardStyle, setStoryboardStyle] = useState<string>('');
+  const [storyboardEnabled, setStoryboardEnabled] = useState(true);
+  const [activeSceneView, setActiveSceneView] = useState<'script' | 'storyboard' | 'character_prompt' | 'scene_prompt' | 'prop_prompt'>('script');
+  const [sceneCharacterPrompts, setSceneCharacterPrompts] = useState<Record<number, string>>({});
+  const [sceneScenePrompts, setSceneScenePrompts] = useState<Record<number, string>>({});
+  const [scenePropPrompts, setScenePropPrompts] = useState<Record<number, string>>({});
+
   // ── Draft persistence ──
   const [draftId, setDraftId] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -189,6 +204,10 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
           setParsedScenes(normalized);
         }
         if (sd.generatedScenes) setGeneratedScenes(sd.generatedScenes as Record<number, string>);
+        if (sd.sceneStoryboards) setSceneStoryboards(sd.sceneStoryboards as Record<number, string>);
+        if (sd.sceneCharacterPrompts) setSceneCharacterPrompts(sd.sceneCharacterPrompts as Record<number, string>);
+        if (sd.sceneScenePrompts) setSceneScenePrompts(sd.sceneScenePrompts as Record<number, string>);
+        if (sd.scenePropPrompts) setScenePropPrompts(sd.scenePropPrompts as Record<number, string>);
         if (sd.accumulatedScript) setAccumulatedScript(sd.accumulatedScript as string);
         if (typeof sd.currentSceneIdx === 'number') setCurrentSceneIdx(sd.currentSceneIdx as number);
         if (typeof sd.lastDiagnosedIdx === 'number') setLastDiagnosedIdx(sd.lastDiagnosedIdx as number);
@@ -229,6 +248,10 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
             sceneOutlineContent,
             parsedScenes,
             generatedScenes,
+            sceneStoryboards,
+            sceneCharacterPrompts,
+            sceneScenePrompts,
+            scenePropPrompts,
             accumulatedScript,
             currentSceneIdx,
             lastDiagnosedIdx,
@@ -268,6 +291,10 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
           sceneOutlineContent,
           parsedScenes,
           generatedScenes,
+          sceneStoryboards,
+          sceneCharacterPrompts,
+          sceneScenePrompts,
+          scenePropPrompts,
           accumulatedScript,
           currentSceneIdx,
           lastDiagnosedIdx,
@@ -280,7 +307,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         } as unknown as DraftStepData,
       });
     } catch { /* silent */ }
-  }, [activeTab, characterSettings, novelContent, novelAnalysis, scriptTitle, structureContent, chosenStructure, sceneOutlineContent, parsedScenes, generatedScenes, accumulatedScript, currentSceneIdx, lastDiagnosedIdx, diagnosisResult, interactiveScriptDone, extraPrompt, genModel]);
+  }, [activeTab, characterSettings, novelContent, novelAnalysis, scriptTitle, structureContent, chosenStructure, sceneOutlineContent, parsedScenes, generatedScenes, sceneStoryboards, sceneCharacterPrompts, sceneScenePrompts, scenePropPrompts, accumulatedScript, currentSceneIdx, lastDiagnosedIdx, diagnosisResult, interactiveScriptDone, extraPrompt, genModel]);
 
   // Save on tab change
   const handleTabChange = (tab: string) => {
@@ -601,6 +628,23 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
       if (sceneIndex !== undefined) {
         const finalContent = (sceneContent || '').trim() || `（第${sceneIndex + 1}场内容为空）`;
         setGeneratedScenes(prev => ({ ...prev, [sceneIndex]: finalContent }));
+        // Save storyboard if returned
+        const storyboardContent = result.storyboard_content as string | undefined;
+        if (storyboardContent) {
+          setSceneStoryboards(prev => ({ ...prev, [sceneIndex]: storyboardContent }));
+        }
+        const characterPrompts = result.character_prompts as string | undefined;
+        if (characterPrompts) {
+          setSceneCharacterPrompts(prev => ({ ...prev, [sceneIndex]: characterPrompts }));
+        }
+        const scenePrompts = result.scene_prompts as string | undefined;
+        if (scenePrompts) {
+          setSceneScenePrompts(prev => ({ ...prev, [sceneIndex]: scenePrompts }));
+        }
+        const propPrompts = result.prop_prompts as string | undefined;
+        if (propPrompts) {
+          setScenePropPrompts(prev => ({ ...prev, [sceneIndex]: propPrompts }));
+        }
         setParsedScenes(prev => prev.map(s => s.index === sceneIndex ? { ...s, status: 'completed' as const } : s));
         setAccumulatedScript(prev => prev ? `${prev}\n\n${finalContent}` : finalContent);
         setCurrentSceneIdx(sceneIndex + 1);
@@ -795,6 +839,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         structure_content: structureContent || undefined,
         ...(extraPrompt.trim() ? { prompt: extraPrompt.trim() } : {}),
         ...(genModel ? { model: genModel } : {}),
+        ...(storyboardEnabled && storyboardStyle ? { storyboard_style_prompt: storyboardStyle } : {}),
       });
     },
     onSuccess: ({ data }) => {
@@ -891,6 +936,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
   const handleOpenScene = useCallback((index: number) => {
     setSelectedSceneIndex(index);
     setEditingSceneContent(generatedScenes[index] || '');
+    setActiveSceneView('script');
   }, [generatedScenes]);
 
   const handleCloseScene = useCallback(() => {
@@ -1605,6 +1651,40 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                     </button>
                   </div>
 
+                  {/* ── Storyboard style chips ── */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-muted-foreground/10">
+                    <span className="text-[11px] text-muted-foreground/50 mr-0.5">画面风格</span>
+                    {(['真人', '2D', '3D'] as const).map((style, idx) => {
+                      const isActive = storyboardStyle === STORYBOARD_STYLE_MAP[style];
+                      return (
+                        <Fragment key={style}>
+                          <button
+                            className={`text-[11px] transition-colors cursor-pointer ${
+                              isActive ? 'text-primary font-medium' : 'text-muted-foreground/40 hover:text-muted-foreground/70'
+                            }`}
+                            onClick={() =>
+                              setStoryboardStyle(isActive ? '' : STORYBOARD_STYLE_MAP[style])
+                            }
+                          >
+                            {style}
+                          </button>
+                          {idx < 2 && <span className="text-[11px] text-muted-foreground/20">|</span>}
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Storyboard toggle ── */}
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={storyboardEnabled}
+                      onChange={(e) => setStoryboardEnabled(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-muted-foreground/30 text-primary focus:ring-primary/30"
+                    />
+                    同时生成分镜头脚本
+                  </label>
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ModelSelector value={genModel} onChange={setGenModel} />
@@ -1781,38 +1861,210 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                     </div>
                   )}
 
+                  {/* Sub-tabs: 剧本 / 分镜头脚本 */}
+                  {generatedScenes[selectedSceneIndex!] && (
+                    <div className="flex items-center gap-1 pb-2 border-b mb-3 shrink-0">
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          activeSceneView === 'script' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveSceneView('script')}
+                      >
+                        剧本
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          activeSceneView === 'storyboard' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveSceneView('storyboard')}
+                      >
+                        分镜头脚本
+                        {sceneStoryboards[selectedSceneIndex!] && (
+                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
+                        )}
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          activeSceneView === 'character_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveSceneView('character_prompt')}
+                      >
+                        角色生图
+                        {sceneCharacterPrompts[selectedSceneIndex!] && (
+                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
+                        )}
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          activeSceneView === 'scene_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveSceneView('scene_prompt')}
+                      >
+                        场景生图
+                        {sceneScenePrompts[selectedSceneIndex!] && (
+                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
+                        )}
+                      </button>
+                      <button
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          activeSceneView === 'prop_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveSceneView('prop_prompt')}
+                      >
+                        道具生图
+                        {scenePropPrompts[selectedSceneIndex!] && (
+                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Scene content */}
                   <div className="flex-1 overflow-y-auto min-h-0">
-                    {generatedScenes[selectedSceneIndex!] ? (
-                      <textarea
-                        className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
-                        value={editingSceneContent}
-                        onChange={(e) => setEditingSceneContent(e.target.value)}
-                        rows={12}
-                        aria-label={`编辑第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场剧本`}
-                      />
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground text-sm">
-                        {parsedScenes[selectedSceneIndex!]?.status === 'generating' ? (
-                          <div className="space-y-2">
-                            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                            <p>正在生成中...</p>
-                          </div>
-                        ) : parsedScenes[selectedSceneIndex!]?.status === 'failed' ? (
-                          <div className="space-y-3">
-                            <AlertCircle className="h-6 w-6 mx-auto text-destructive" />
-                            <p className="text-destructive">生成失败</p>
-                            <Button size="sm" variant="outline" onClick={() => {
-                              generateSceneMutation.mutate(selectedSceneIndex!);
-                            }}>
-                              <RefreshCw className="h-4 w-4 mr-1" /> 重试
-                            </Button>
-                          </div>
-                        ) : (
+                    {activeSceneView === 'script' && (
+                      generatedScenes[selectedSceneIndex!] ? (
+                        <textarea
+                          className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
+                          value={editingSceneContent}
+                          onChange={(e) => setEditingSceneContent(e.target.value)}
+                          rows={12}
+                          aria-label={`编辑第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场剧本`}
+                        />
+                      ) : (
+                        <div className="text-center py-12 text-muted-foreground text-sm">
+                          {parsedScenes[selectedSceneIndex!]?.status === 'generating' ? (
+                            <div className="space-y-2">
+                              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                              <p>正在生成中...</p>
+                            </div>
+                          ) : parsedScenes[selectedSceneIndex!]?.status === 'failed' ? (
+                            <div className="space-y-3">
+                              <AlertCircle className="h-6 w-6 mx-auto text-destructive" />
+                              <p className="text-destructive">生成失败</p>
+                              <Button size="sm" variant="outline" onClick={() => {
+                                generateSceneMutation.mutate(selectedSceneIndex!);
+                              }}>
+                                <RefreshCw className="h-4 w-4 mr-1" /> 重试
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                              <p>尚未生成。点击"生成下一场"按钮开始。</p>
+                            </>
+                          )}
+                        </div>
+                      )
+                    )}
+
+                    {activeSceneView === 'storyboard' && (
+                      <div className="space-y-3">
+                        {sceneStoryboards[selectedSceneIndex!] ? (
                           <>
-                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                            <p>尚未生成。点击"生成下一场"按钮开始。</p>
+                            {/* Parsed shot cards */}
+                            <div className="rounded-md border border-muted/50 bg-muted/20 p-3 space-y-2">
+                              <h4 className="text-xs font-medium text-muted-foreground">镜头列表</h4>
+                              {(() => {
+                                const shots: { label: string; description: string }[] = [];
+                                for (const line of sceneStoryboards[selectedSceneIndex!].split('\n')) {
+                                  const trimmed = line.trim();
+                                  if (!trimmed) continue;
+                                  const match = trimmed.match(/^【镜头(\d+)】\s*(.+)/);
+                                  if (match) {
+                                    shots.push({ label: `镜头 ${match[1]}`, description: match[2].trim() });
+                                  }
+                                }
+                                return shots.length > 0 ? (
+                                  shots.map((shot, i) => (
+                                    <div key={i} className="border-b border-muted/30 pb-2 last:border-0 last:pb-0">
+                                      <span className="text-xs font-medium text-primary/70">{shot.label}</span>
+                                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{shot.description}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">未能解析镜头列表，请在下方原文中查看。</p>
+                                );
+                              })()}
+                            </div>
+                            {/* Editable raw text */}
+                            <textarea
+                              className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
+                              value={sceneStoryboards[selectedSceneIndex!] || ''}
+                              onChange={(e) =>
+                                setSceneStoryboards(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
+                              }
+                              rows={8}
+                              aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场分镜头脚本`}
+                            />
                           </>
+                        ) : (
+                          <div className="text-center py-12 text-muted-foreground text-sm">
+                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                            <p>尚未生成分镜头脚本。请在生成时勾选"同时生成分镜头脚本"。</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeSceneView === 'character_prompt' && (
+                      <div className="space-y-3">
+                        {sceneCharacterPrompts[selectedSceneIndex!] ? (
+                          <textarea
+                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
+                            value={sceneCharacterPrompts[selectedSceneIndex!] || ''}
+                            onChange={(e) =>
+                              setSceneCharacterPrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
+                            }
+                            rows={12}
+                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场角色生图提示词`}
+                          />
+                        ) : (
+                          <div className="text-center py-12 text-muted-foreground text-sm">
+                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                            <p>尚未生成角色生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeSceneView === 'scene_prompt' && (
+                      <div className="space-y-3">
+                        {sceneScenePrompts[selectedSceneIndex!] ? (
+                          <textarea
+                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
+                            value={sceneScenePrompts[selectedSceneIndex!] || ''}
+                            onChange={(e) =>
+                              setSceneScenePrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
+                            }
+                            rows={12}
+                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场场景生图提示词`}
+                          />
+                        ) : (
+                          <div className="text-center py-12 text-muted-foreground text-sm">
+                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                            <p>尚未生成场景生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeSceneView === 'prop_prompt' && (
+                      <div className="space-y-3">
+                        {scenePropPrompts[selectedSceneIndex!] ? (
+                          <textarea
+                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
+                            value={scenePropPrompts[selectedSceneIndex!] || ''}
+                            onChange={(e) =>
+                              setScenePropPrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
+                            }
+                            rows={12}
+                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场道具生图提示词`}
+                          />
+                        ) : (
+                          <div className="text-center py-12 text-muted-foreground text-sm">
+                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                            <p>尚未生成道具生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
+                          </div>
                         )}
                       </div>
                     )}

@@ -44,8 +44,8 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     .filter(Boolean);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['novels', keywords],
-    queryFn: () => novelsApi.search({ keywords: keywordList }),
+    queryKey: ['novels', keywords, selectedModel],
+    queryFn: () => novelsApi.search({ keywords: keywordList, model: selectedModel || undefined }),
     enabled: keywordList.length > 0,
     staleTime: 0,
     gcTime: 0,

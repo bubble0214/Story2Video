@@ -1,5 +1,6 @@
 export interface SearchNovelReq {
   keywords: string[];
+  model?: string;
 }
 
 export interface SearchResultItem {

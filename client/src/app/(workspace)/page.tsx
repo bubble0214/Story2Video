@@ -5,30 +5,39 @@ import { useQuery } from '@tanstack/react-query';
 import { tasksApi } from '@/services/tasks';
 import { WORKFLOW_TYPE_TO_MODE } from '@/types/workflow';
 import { Card, CardContent } from '@/components/ui/card';
-import { PenLine, FileText, Music, Image, Video, ArrowRight, type LucideIcon } from 'lucide-react';
+import { PenLine, FileText, Music, Image, Video, Clapperboard, ArrowRight, type LucideIcon } from 'lucide-react';
 import type { TaskResp } from '@/types/task';
 
 const WORKFLOW_LINKS: { mode: string; label: string; Icon: LucideIcon; href: string }[] = [
   { mode: 'novel', label: '小说', Icon: PenLine, href: '/workflow/novel' },
   { mode: 'script', label: '剧本', Icon: FileText, href: '/workflow/script' },
-  { mode: 'lyrics', label: '歌词', Icon: FileText, href: '/workflow/lyrics' },
-  { mode: 'song', label: '歌曲', Icon: Music, href: '/workflow/song' },
+  { mode: 'lyrics', label: '歌曲', Icon: Music, href: '/workflow/song' },
   { mode: 'image', label: '图片', Icon: Image, href: '/workflow/image' },
+  { mode: 'mv', label: 'MV', Icon: Clapperboard, href: '/workflow/mv' },
   { mode: 'video', label: '视频', Icon: Video, href: '/workflow/video' },
 ];
 
 const MODE_ICONS: Record<string, LucideIcon> = {
   novel: PenLine,
   script: FileText,
-  lyrics: FileText,
-  song: Music,
+  lyrics: Music,
   image: Image,
+  mv: Clapperboard,
   video: Video,
 };
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function extractTitle(task: TaskResp): string {
+  const lyricsContent = task.result?.lyrics_content;
+  if (typeof lyricsContent === 'string') {
+    const match = lyricsContent.match(/【歌曲名称】(.+?)(?:\n|$)/);
+    if (match) return match[1].trim();
+  }
+  return (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
 }
 
 export default function HomePage() {
@@ -67,7 +76,7 @@ export default function HomePage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">{item.label}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        生成{item.mode === 'novel' ? '小说' : item.mode === 'script' ? '剧本' : item.mode === 'lyrics' ? '歌词' : item.mode === 'song' ? '歌曲' : item.mode === 'image' ? '图片' : '视频'}
+                        生成{item.mode === 'novel' ? '小说' : item.mode === 'script' ? '剧本' : item.mode === 'script-gen' ? '脚本' : item.mode === 'lyrics' ? '歌曲' : item.mode === 'image' ? '图片' : item.mode === 'mv' ? 'MV' : '视频'}
                       </p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -92,7 +101,7 @@ export default function HomePage() {
             {recentItems.map((task: TaskResp) => {
               const mode = WORKFLOW_TYPE_TO_MODE[task.workflow_type] ?? 'novel';
               const Icon = MODE_ICONS[mode] ?? PenLine;
-              const title = (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
+              const title = extractTitle(task);
 
               return (
                 <Link

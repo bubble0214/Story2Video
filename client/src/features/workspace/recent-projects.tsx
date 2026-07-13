@@ -4,8 +4,17 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { tasksApi } from '@/services/tasks';
 import { WORKFLOW_TYPE_TO_MODE } from '@/types/workflow';
-import { PenLine, FileText, Music, Image, Video, type LucideIcon } from 'lucide-react';
+import { PenLine, FileText, Music, Image, Video, Clapperboard, type LucideIcon } from 'lucide-react';
 import type { TaskResp } from '@/types/task';
+
+function extractTitle(task: TaskResp): string {
+  const lyricsContent = task.result?.lyrics_content;
+  if (typeof lyricsContent === 'string') {
+    const match = lyricsContent.match(/【歌曲名称】(.+?)(?:\n|$)/);
+    if (match) return match[1].trim();
+  }
+  return (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
+}
 
 const MODE_ICONS: Record<string, LucideIcon> = {
   novel: PenLine,
@@ -14,6 +23,7 @@ const MODE_ICONS: Record<string, LucideIcon> = {
   song: Music,
   image: Image,
   video: Video,
+  mv: Clapperboard,
 };
 
 export function RecentProjects() {
@@ -52,7 +62,7 @@ export function RecentProjects() {
         {successItems.map((task: TaskResp) => {
           const mode = WORKFLOW_TYPE_TO_MODE[task.workflow_type] ?? 'novel';
           const Icon = MODE_ICONS[mode] ?? PenLine;
-          const title = (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
+          const title = extractTitle(task);
 
           return (
             <Link

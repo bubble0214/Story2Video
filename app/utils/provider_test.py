@@ -36,6 +36,14 @@ _PROVIDER_TESTS: dict[str, tuple[str, dict[str, str], str]] = {
         {"Authorization": "Bearer {key}"},
         "get",
     ),
+    "minimax": (
+        # No lightweight validation endpoint available.
+        # The music generation endpoint requires credits and is slow (30-60s).
+        # Validation is done locally via format check.
+        "",
+        {},
+        "format_minimax",
+    ),
     "suno": (
         "https://api.suno.ai/v1/",
         {"Authorization": "Bearer {key}"},
@@ -55,6 +63,11 @@ _PROVIDER_TESTS: dict[str, tuple[str, dict[str, str], str]] = {
         "https://api.d-id.com/me",
         {"Authorization": "Bearer {key}"},
         "get",
+    ),
+    "coze": (
+        "{base_url}/v1/bots/{model_name}",
+        {"Authorization": "Bearer {key}"},
+        "get_coze",
     ),
     "custom": (
         "{base_url}/models",
@@ -81,6 +94,10 @@ async def check_provider_connection(
     if base_url:
         base_url = base_url.rstrip("/").removesuffix("/embeddings")
     url = url_template.replace("{key}", api_key)
+    if "{model_name}" in url_template:
+        if not model_name:
+            return False, "model_name (bot_id) is required for Coze"
+        url = url_template.replace("{model_name}", model_name)
     if "{base_url}" in url_template:
         if not base_url:
             return False, "base_url is required for this provider"
@@ -109,6 +126,18 @@ async def check_provider_connection(
                         "messages": [{"role": "user", "content": "ping"}],
                     },
                 )
+            elif method == "get_coze":
+                # Coze: verify token via workspaces API (lightweight)
+                coze_base = (base_url or "https://api.coze.cn").rstrip("/")
+                resp = await client.get(
+                    f"{coze_base}/v1/workspaces",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                if resp.status_code == 200:
+                    body = resp.json()
+                    if body.get("code") == 0:
+                        return True, "Connection successful"
+                    return False, body.get("msg", "Coze API error")
             elif method == "post_embedding":
                 resp = await client.post(
                     url,
@@ -119,6 +148,18 @@ async def check_provider_connection(
                             "texts": ["ping"],
                         },
                     },
+                )
+            elif method == "format_minimax":
+                # MiniMax has no free key validation endpoint.
+                # Do a local format check only.
+                if api_key.startswith("sk-cp-") or api_key.startswith("sk-api-"):
+                    return True, (
+                        "Key format is valid. "
+                        "Save the key and try generating a song to verify actual availability."
+                    )
+                return False, (
+                    "MiniMax key should start with 'sk-cp-' or 'sk-api-'. "
+                    "Please check your key and try again."
                 )
             else:
                 resp = await client.get(url, headers=headers)

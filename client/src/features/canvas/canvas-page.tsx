@@ -9,7 +9,29 @@ import { CanvasToolbar } from './canvas-toolbar';
 import { CanvasArea } from './canvas-area';
 import { NodePanel } from './node-panel';
 import { CanvasListSheet } from './canvas-list-sheet';
+import { AssetList } from './canvas-asset-list';
+import { CanvasLeftPanel } from './canvas-left-panel';
+import { LightControl } from './tools/light-control';
+import { CameraControl } from './tools/camera-control';
+import { ThreeViewPanel } from './tools/three-view';
+import { PanoramicPanel } from './tools/panoramic';
+import { AssetCategory } from '@/types/canvas';
+import {
+  User,
+  Mountain,
+  Box,
+  FileText,
+  LayoutGrid,
+} from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+
+const TABS = [
+  { key: 'character' as AssetCategory, label: '角色', Icon: User },
+  { key: 'scene' as AssetCategory, label: '场景', Icon: Mountain },
+  { key: 'prop' as AssetCategory, label: '道具', Icon: Box },
+  { key: 'material' as AssetCategory, label: '素材', Icon: FileText },
+  { key: 'canvas' as const, label: '画布', Icon: LayoutGrid },
+];
 
 export function CanvasPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -23,6 +45,8 @@ export function CanvasPage() {
     getCanvasData,
     canvasTitle,
     nodes,
+    activeAssetTab,
+    setActiveAssetTab,
   } = useCanvasStore();
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,11 +144,46 @@ export function CanvasPage() {
         </div>
       </div>
 
-      {/* Canvas + Node Panel */}
-      <div className="flex flex-1 overflow-hidden">
-        <CanvasArea />
-        <NodePanel />
+      {/* Tabs */}
+      <div className="flex items-center border-b bg-muted/20 px-2">
+        {TABS.map((tab) => {
+          const Icon = tab.Icon;
+          const isActive = activeAssetTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors ${
+                isActive
+                  ? 'border-primary text-foreground font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setActiveAssetTab(tab.key)}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {activeAssetTab === 'canvas' ? (
+          <>
+            <CanvasLeftPanel />
+            <CanvasArea />
+            <NodePanel />
+          </>
+        ) : (
+          <AssetList category={activeAssetTab as AssetCategory} />
+        )}
+      </div>
+
+      {/* Tool Panels */}
+      <LightControl />
+      <CameraControl />
+      <ThreeViewPanel />
+      <PanoramicPanel />
     </div>
   );
 }

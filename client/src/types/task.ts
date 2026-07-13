@@ -15,8 +15,11 @@ export type WorkflowType =
   | 'generate_lyrics'
   | 'extract_lyrics_core'
   | 'generate_song'
+  | 'generate_music_style'
   | 'generate_image'
-  | 'generate_video';
+  | 'generate_video'
+  | 'generate_mv'
+  | 'generate_mv_storyboard';
 
 export interface CreateTaskReq {
   workflow_type: WorkflowType;

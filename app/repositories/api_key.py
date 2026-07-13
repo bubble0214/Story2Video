@@ -15,10 +15,14 @@ class ApiKeyRepository:
     async def create(
         self, user_id: UUID, provider: str, encrypted_key: str,
         base_url: str | None = None, model_name: str | None = None,
+        coze_space_id: str | None = None,
+        coze_billing_project_id: str | None = None,
     ) -> ApiKey:
         obj = ApiKey(
             user_id=user_id, provider=provider, encrypted_key=encrypted_key,
             base_url=base_url, model_name=model_name,
+            coze_space_id=coze_space_id,
+            coze_billing_project_id=coze_billing_project_id,
         )
         self._session.add(obj)
         await self._session.commit()
@@ -54,6 +58,8 @@ class ApiKeyRepository:
     async def update_key(
         self, api_key_id: UUID, new_encrypted_key: str,
         base_url: str | None = None, model_name: str | None = None,
+        coze_space_id: str | None = None,
+        coze_billing_project_id: str | None = None,
     ) -> ApiKey | None:
         obj = await self.get_by_id(api_key_id)
         if obj is None:
@@ -61,6 +67,8 @@ class ApiKeyRepository:
         obj.encrypted_key = new_encrypted_key
         obj.base_url = base_url
         obj.model_name = model_name
+        obj.coze_space_id = coze_space_id
+        obj.coze_billing_project_id = coze_billing_project_id
         await self._session.commit()
         await self._session.refresh(obj)
         return obj

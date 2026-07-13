@@ -24,6 +24,7 @@ httpx==0.28.1
 email-validator==2.2.0
 cryptography==44.0.0
 pgvector==0.3.6
+cozepy>=0.20.0
 
 # Task Queue
 celery==5.4.0

@@ -12,8 +12,10 @@ import {
   Music,
   Image,
   Video,
+  Scroll,
   PenTool,
   FolderOpen,
+  Clapperboard,
   type LucideIcon,
 } from 'lucide-react';
 import { RecentProjects } from './recent-projects';
@@ -27,18 +29,19 @@ interface SidebarItem {
 const WORKFLOW_ITEMS: SidebarItem[] = [
   { mode: 'novel', label: '小说', Icon: PenLine },
   { mode: 'script', label: '剧本', Icon: FileText },
-  { mode: 'lyrics', label: '歌词', Icon: FileText },
-  { mode: 'song', label: '歌曲', Icon: Music },
+  { mode: 'lyrics', label: '歌曲', Icon: Music },
   { mode: 'image', label: '图片', Icon: Image },
+  { mode: 'mv', label: 'MV', Icon: Clapperboard },
   { mode: 'video', label: '视频', Icon: Video },
 ];
 
 const WORKFLOW_PATHS: Record<string, string> = {
   novel: '/workflow/novel',
   script: '/workflow/script',
-  lyrics: '/workflow/lyrics',
+  lyrics: '/workflow/song',
   song: '/workflow/song',
   image: '/workflow/image',
+  mv: '/workflow/mv',
   video: '/workflow/video',
 };
 

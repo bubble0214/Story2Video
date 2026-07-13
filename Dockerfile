@@ -9,6 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Node.js + Coze CLI (for image generation via CozeImageProvider)
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+    && npm install -g @coze/cli \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Copy project
 COPY . .
 

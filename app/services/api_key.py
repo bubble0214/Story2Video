@@ -15,15 +15,22 @@ class ApiKeyService:
     async def create(
         self, user_id: str, provider: str, raw_key: str,
         base_url: str | None = None, model_name: str | None = None,
+        coze_space_id: str | None = None,
+        coze_billing_project_id: str | None = None,
     ) -> ApiKeyEntity:
         encrypted = encrypt_plaintext(raw_key)
-        obj = await self._repo.create(UUID(user_id), provider, encrypted, base_url, model_name)
+        obj = await self._repo.create(
+            UUID(user_id), provider, encrypted, base_url, model_name,
+            coze_space_id, coze_billing_project_id,
+        )
         return ApiKeyEntity(
             id=str(obj.id),
             user_id=str(obj.user_id),
             provider=obj.provider,
             base_url=obj.base_url,
             model_name=obj.model_name,
+            coze_space_id=obj.coze_space_id,
+            coze_billing_project_id=obj.coze_billing_project_id,
             decrypted_key=raw_key,
             created_at=obj.created_at,
         )
@@ -39,6 +46,8 @@ class ApiKeyService:
                     provider=obj.provider,
                     base_url=obj.base_url,
                     model_name=obj.model_name,
+                    coze_space_id=obj.coze_space_id,
+                    coze_billing_project_id=obj.coze_billing_project_id,
                     created_at=obj.created_at,
                 )
             )
@@ -47,13 +56,18 @@ class ApiKeyService:
     async def update_key(
         self, api_key_id: str, user_id: str, new_raw_key: str,
         base_url: str | None = None, model_name: str | None = None,
+        coze_space_id: str | None = None,
+        coze_billing_project_id: str | None = None,
     ) -> ApiKeyEntity:
         obj = await self._repo.get_by_id(UUID(api_key_id))
         if obj is None or str(obj.user_id) != user_id:
             raise ValueError("API key not found")
 
         encrypted = encrypt_plaintext(new_raw_key)
-        updated = await self._repo.update_key(UUID(api_key_id), encrypted, base_url, model_name)
+        updated = await self._repo.update_key(
+            UUID(api_key_id), encrypted, base_url, model_name,
+            coze_space_id, coze_billing_project_id,
+        )
         if updated is None:
             raise ValueError("API key not found")
 
@@ -63,6 +77,8 @@ class ApiKeyService:
             provider=updated.provider,
             base_url=updated.base_url,
             model_name=updated.model_name,
+            coze_space_id=updated.coze_space_id,
+            coze_billing_project_id=updated.coze_billing_project_id,
             decrypted_key=new_raw_key,
             created_at=updated.created_at,
         )
@@ -90,6 +106,8 @@ class ApiKeyService:
             provider=obj.provider,
             base_url=obj.base_url,
             model_name=obj.model_name,
+            coze_space_id=obj.coze_space_id,
+            coze_billing_project_id=obj.coze_billing_project_id,
             decrypted_key=plain,
             created_at=obj.created_at,
         )
@@ -108,6 +126,8 @@ class ApiKeyService:
             provider=obj.provider,
             base_url=obj.base_url,
             model_name=obj.model_name,
+            coze_space_id=obj.coze_space_id,
+            coze_billing_project_id=obj.coze_billing_project_id,
             decrypted_key=plain,
             created_at=obj.created_at,
         )

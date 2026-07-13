@@ -59,7 +59,7 @@ def parse_review_chapter_revisions(report: str) -> dict[int, str]:
     """Parse chapter revisions from a review report.
 
     Scans for markers like 【第3章修改】 and returns a dict mapping
-    0-based chapter indices to revised full text.
+    0-based chapter indices to revised full text (with commentary stripped).
     """
     revisions: dict[int, str] = {}
     for match in re.finditer(r"【第(\d+)章修改】", report):
@@ -71,8 +71,35 @@ def parse_review_chapter_revisions(report: str) -> dict[int, str]:
             if next_marker else report[start:].strip()
         )
         if revised:
-            revisions[ch_idx] = revised
+            revisions[ch_idx] = _clean_revision_content(revised)
     return revisions
+
+
+def _clean_revision_content(content: str) -> str:
+    """Remove review commentary from revision content, keeping only chapter text.
+
+    LLM output often prefixes the revised chapter with notes like:
+    '修改建议：...' or '（以下是修改后的完整章节）'
+    Strips everything before the first chapter heading or title.
+    """
+    lines = content.split('\n')
+    first_heading_idx = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if re.match(r'^#{1,6}\s+', stripped) or re.match(r'^第\d+章', stripped):
+            first_heading_idx = i
+            break
+
+    if first_heading_idx is not None and first_heading_idx > 0:
+        before_lines = lines[:first_heading_idx]
+        non_commentary = [
+            l for l in before_lines
+            if l.strip() and '修改' not in l and '建议' not in l and '以下' not in l
+        ]
+        if not non_commentary:
+            content = '\n'.join(lines[first_heading_idx:])
+
+    return content.strip()
 
 
 def parse_decision(text: str) -> str:

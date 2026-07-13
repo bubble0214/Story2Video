@@ -1,3 +1,4 @@
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -186,6 +187,33 @@ _ANALYZE_CHAPTERS_SYSTEM_PROMPT = (
 )
 
 
+def _clean_revision_content(content: str) -> str:
+    """Remove review commentary from revision content, keeping only chapter text.
+
+    LLM output often prefixes the revised chapter with notes like:
+    '修改建议：...' or '（以下是修改后的完整章节）'
+    Strips everything before the first chapter heading or title.
+    """
+    lines = content.split('\n')
+    first_heading_idx = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if re.match(r'^#{1,6}\s+', stripped) or re.match(r'^第\d+章', stripped):
+            first_heading_idx = i
+            break
+
+    if first_heading_idx is not None and first_heading_idx > 0:
+        before_lines = lines[:first_heading_idx]
+        non_commentary = [
+            l for l in before_lines
+            if l.strip() and '修改' not in l and '建议' not in l and '以下' not in l
+        ]
+        if not non_commentary:
+            content = '\n'.join(lines[first_heading_idx:])
+
+    return content.strip()
+
+
 @router.post(
     "/analyze-chapters",
     response_model=AnalyzeChaptersResp,
@@ -245,7 +273,7 @@ async def analyze_chapters(
             revisions_list.append({
                 "chapter_index": ch_idx,
                 "title": original.title,
-                "content": revised_text,
+                "content": _clean_revision_content(revised_text),
             })
 
     revision_chapter_numbers = sorted(r["chapter_index"] + 1 for r in revisions_list)

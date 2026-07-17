@@ -390,7 +390,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
       }));
     assetNovels.push(...taskNovels);
     const draftNovels: AssetNovelItem[] = assetNovelsData.drafts
-      .filter((d) => d.status === 'completed')
+      .filter((d) => d.status === 'completed' || d.status === 'in_progress')
       .map((d) => ({ id: d.id, source: 'draft' as const, title: d.title, content: '' }));
     assetNovels.push(...draftNovels);
   }

@@ -24,9 +24,17 @@ export interface DiagnoseReq {
   model?: string;
 }
 
+export interface SceneModifiedStoryboard {
+  storyboard_content: string;
+  character_prompts: string;
+  scene_prompts: string;
+  prop_prompts: string;
+}
+
 export interface SceneDiagnosisResp {
   script_diagnosis: string;
   modified_scenes: Record<string, string>;
+  modified_storyboards?: Record<string, SceneModifiedStoryboard>;
 }
 
 export const scriptsApi = {

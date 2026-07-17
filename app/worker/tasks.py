@@ -853,6 +853,222 @@ async def _step_generate_single_scene(
     }
 
 
+async def _generate_storyboard_for_text(
+    scene_text: str,
+    storyboard_style: str,
+    provider: Any,
+) -> dict[str, str]:
+    """Generate storyboard, character prompts, scene prompts, prop prompts from a scene text.
+
+    This is a lighter version of the storyboard portion of _step_generate_single_scene,
+    taking an already-written scene text and generating only the visual downstream outputs.
+    """
+    storyboard_instruction = (
+        "你是一位擅长视觉叙事的资深分镜师，风格借鉴"
+        + ("（" + storyboard_style.replace("真人实拍电影风格，写实光影，自然色彩，真实人物动作逻辑", "真人影视风格").replace("2D动漫风格，手绘质感，平涂色彩，日系或国漫画风", "2D动漫风格").replace("3D动画渲染风格，立体建模，CG光影，风格化材质", "3D渲染风格") + "）" if storyboard_style else "通用影视叙事风格")
+        + "。请根据单场剧本，生成一份专业、可执行的适用于豆包 seedance2.0 视频模型直接生成视频的分镜脚本。"
+        "每一场固定统一的风格和统一的色调，我需要做出"
+        + ("【" + storyboard_style.replace("真人实拍电影风格，写实光影，自然色彩，真实人物动作逻辑", "真人").replace("2D动漫风格，手绘质感，平涂色彩，日系或国漫画风", "2D").replace("3D动画渲染风格，立体建模，CG光影，风格化材质", "3D") + "】" if storyboard_style else "")
+        + "视频。\n\n"
+        "要求：\n"
+        "1. 完整提取这一场戏的所有关键动作、情绪和对白，不能遗漏情节。\n"
+        "2. 为每个镜头注明镜号。\n"
+        "3. 用清晰的语言描述画面内容，包括人物位置、神态、动作、构图要点。\n"
+        "4. 明确写出景别、角度、运镜方式。\n"
+        "5. 单独列出该镜头的对白/旁白。\n"
+        "6. 单独列出场景描述和光影描述。\n"
+        "7. 给出时长估计（秒）。\n"
+        "8. 提示重点音效/音乐。\n\n"
+        "最终成果以Markdown表格呈现，表格列依次为："
+        "镜号 | 景别 | 角度/运镜 | 画面内容 | 对白/旁白 | 时长(秒) | 场景 | 光影 | 音效/音乐\n"
+        "请先输出本场完整的剧本内容，然后使用分隔符 `---分镜头脚本---` 输出上述分镜表格。"
+        "\n\n"
+        "在分镜表格之后，再使用分隔符 `---角色生图提示词---` 输出本场所有角色的生图提示词。"
+        "分析本场里所有的角色，参考以下模板，给出相对应的生图提示词，要求风格统一，"
+        "我需要做成高质量"
+        + ("【" + storyboard_style.replace("真人实拍电影风格，写实光影，自然色彩，真实人物动作逻辑", "真人").replace("2D动漫风格，手绘质感，平涂色彩，日系或国漫画风", "2D").replace("3D动画渲染风格，立体建模，CG光影，风格化材质", "3D") + "】" if storyboard_style else "")
+        + "视频。\n\n"
+        "模板如下：\n"
+        "[人物基础特征]\n"
+        "性别:\n"
+        "年龄:\n"
+        "体型与肤色:\n"
+        "风格:（" + (storyboard_style if storyboard_style else "由你根据画面风格设定") + "）\n"
+        "色彩基调:\n"
+        "[头部细节]\n"
+        "头发:露出颈部和肩膀\n"
+        "脸部:\n"
+        "眉毛:\n"
+        "鼻子:\n"
+        "眼神:\n"
+        "[身体与穿搭]\n"
+        "手部:\n"
+        "腿部:\n"
+        "衣服:要求完全对称，剪裁清晰\n"
+        "裤子:\n"
+        "鞋子:\n"
+        "配饰:无大件遮挡物，小巧贴合\n"
+        "[技术与环境限制]\n"
+        "背景:纯白纯色背景，无纹理、无渐变、无杂物、无任何装饰元素\n"
+        "姿势:绝对标准的A-Pose，双臂自然下垂，呈A字形\n"
+        "比例:哥特式比例，高级时装插画视觉\n"
+        "视角:正前视，平视中心镜头，正交视角，零透视畸变，无广角、无仰俯角度、无镜头变形\n"
+        "表情:面无表情，自然双唇闭合，神态平静淡然，无喜怒哀乐\n"
+        "光照:全局均衡柔和漫射光\n"
+        "构图:完整全身立绘，从头到脚完整呈现，双脚鞋子完整入镜，头顶保留适量留白空间，画面居中对称构图\n"
+        "画质与渲染:4k分辨率，杰作，极致细节，专业角色设计表，清晰的材质纹理\n\n"
+        "在角色生图提示词之后，再使用分隔符 `---场景生图提示词---` 输出本场场景的生图提示词。"
+        "分析本场里的场景，参考以下模板，给出相对应的生图提示词，要求风格统一。\n\n"
+        "模板如下：\n"
+        "[核心设定]\n"
+        "风格:（" + (storyboard_style if storyboard_style else "由你根据画面风格设定") + "）\n"
+        "时间与天气:\n"
+        "色彩基调:\n"
+        "[空间与结构]\n"
+        "空间描述:\n"
+        "材质与细节:（例如:生锈的管道、光滑的微水泥地面、破碎的玻璃）\n"
+        "远景/边界:（视野尽头或窗外的景象）\n"
+        "[光影与镜头]\n"
+        "光源设定:（光从哪里来?）\n"
+        "光影技术:（例如:丁达尔效应、全局光照、反射光）\n"
+        "视角:（例如:第一人称视角、无人机俯拍、广角仰视）\n"
+        "构图:（例如:绝对对称构图、三分法则、引导线构图）\n"
+        "[技术与约束]\n"
+        "画质与渲染:Unreal Engine 5，Octane Render，8k分辨率，杰作，极高细节\n"
+        "附加要求(指令):不要有角色出现在场景里\n\n"
+        "在场景生图提示词之后，再使用分隔符 `---道具生图提示词---` 输出本场道具生图内容。分两步：\n\n"
+        "第一步：你是一位资深的电影美术指导与道具师。我将给你一场戏的剧本，请你从中提取所有会被镜头拍摄到的道具，并生成一份详细的\"道具陈设与生图清单\"。\n\n"
+        "提取规则：\n"
+        "- 按\"场景主陈设\"、\"手持/关键道具\"、\"人物装饰\"三类分别列出。\n"
+        "- 每个道具都需要推测或描述其材质、颜色、年代感、风格。如果剧本未写明，请根据人物身份、时代背景和氛围进行合理推断，并用括号标注（推断）。\n"
+        "- 对每个道具，给出一个用于AI生图的核心描述短句。\n"
+        "- 单独列出该场戏中具有特殊叙事功能的核心道具，并附上50字内的视觉重要性说明。\n\n"
+        "输出格式：Markdown表格，列名：分类 | 道具名称 | 特征描述（材质/颜色/年代/风格） | AI生图核心短句 | 是否为叙事核心\n\n"
+        "第二步：将道具清单转化为适用于豆包生图模型生图的中文高质量绘画提示词。每个提示词需遵循以下公式：\n"
+        "[主体描述] + [材质与细节] + [环境与光影] + [构图与视角] + [风格标签]\n\n"
+        "要求：\n"
+        "- 视角统一为\"近距离特写\"或\"静物拍摄\"，避免出现完整人物。\n"
+        "- 背景简洁，使用\"深色背景，电影级布光，柔和阴影\"来突出道具质感。\n"
+        "- 风格标签加入：concept art, highly detailed, 8k, octane render, photorealistic（或根据画面风格调整）。\n"
+        "- 若道具为系列物品（如一组药瓶），请明确数量。\n"
+        "请先输出第一步的道具陈设清单，然后使用分隔符 `---道具生图提示词---` 输出第二步的中文生图提示词。\n\n"
+        "重要：你必须严格按照上述顺序输出所有四个部分，每个部分都必须包含。"
+    )
+
+    messages = [
+        {
+            "role": "system",
+            "content": "你是一位资深分镜师和视觉设计师。请根据提供的剧本内容，生成专业的视觉分镜和生图提示词。",
+        },
+        {
+            "role": "user",
+            "content": f"# 剧本内容\n\n{scene_text}\n\n{storyboard_instruction}",
+        },
+    ]
+
+    raw = await provider.chat(messages)
+    stripped = raw.strip()
+
+    # ── Parse using the same robust split logic from _step_generate_single_scene ──
+    import re as _re
+
+    storyboard_content = ""
+    character_prompts = ""
+    scene_prompts = ""
+    prop_prompts = ""
+
+    # Phase 1: try exact separator matching
+    _sep_found = None
+    for _sep in ["---分镜头脚本---", "--- 分镜头脚本 ---", "---\n分镜头脚本---", "--- \n分镜头脚本---", "## 分镜头脚本"]:
+        if _sep in stripped:
+            _sep_found = _sep
+            break
+
+    if _sep_found:
+        _parts = stripped.split(_sep_found, 1)
+        _rest = _parts[1].strip()
+
+        for _char_sep in ["---角色生图提示词---", "--- 角色生图提示词 ---", "## 角色生图提示词"]:
+            if _char_sep in _rest:
+                _sb_parts = _rest.split(_char_sep, 1)
+                storyboard_content = _sb_parts[0].strip()
+                _cr = _sb_parts[1].strip()
+
+                for _sc_sep in ["---场景生图提示词---", "--- 场景生图提示词 ---", "## 场景生图提示词"]:
+                    if _sc_sep in _cr:
+                        _cp_parts = _cr.split(_sc_sep, 1)
+                        character_prompts = _cp_parts[0].strip()
+                        _sr = _cp_parts[1].strip()
+
+                        for _prop_sep in ["---道具生图提示词---", "--- 道具生图提示词 ---", "## 道具生图提示词"]:
+                            if _prop_sep in _sr:
+                                _sp_parts = _sr.split(_prop_sep, 1)
+                                scene_prompts = _sp_parts[0].strip()
+                                prop_prompts = _sp_parts[1].strip()
+                                break
+                        if not prop_prompts:
+                            scene_prompts = _sr
+                        break
+                if not scene_prompts:
+                    character_prompts = _cr
+                break
+        if not character_prompts:
+            storyboard_content = _rest
+
+    # Phase 2: content-based fallback
+    if not storyboard_content and not character_prompts and not scene_prompts and not prop_prompts:
+        _lines = stripped.split('\n')
+        _sections: dict[str, list[str]] = {
+            "script": [], "storyboard": [], "character": [], "scene": [], "prop": [],
+        }
+        _current = "script"
+        for _line in _lines:
+            _trimmed = _line.strip()
+            if _re.match(r'^\|\s*镜号\s*\|', _trimmed):
+                _current = "storyboard"
+            elif _trimmed == "[人物基础特征]" or _trimmed.startswith("[人物基础特征]") or _trimmed == "【人物基础特征】":
+                _current = "character"
+            elif _trimmed == "[核心设定]" or _trimmed.startswith("[核心设定]") or _trimmed == "【核心设定】":
+                _current = "scene"
+            elif _re.match(r'^分类\s*\|', _trimmed) or _trimmed == "[主体描述]" or _trimmed.startswith("[主体描述]"):
+                _current = "prop"
+            _sections[_current].append(_line)
+        if _sections["storyboard"]:
+            storyboard_content = '\n'.join(_sections["storyboard"]).strip()
+            if _sections["character"]:
+                character_prompts = '\n'.join(_sections["character"]).strip()
+            if _sections["scene"]:
+                scene_prompts = '\n'.join(_sections["scene"]).strip()
+            if _sections["prop"]:
+                prop_prompts = '\n'.join(_sections["prop"]).strip()
+
+    # Phase 3-5: cascade fallback
+    if not character_prompts and storyboard_content:
+        _m = _re.search(r'\n\[人物基础特征\]', storyboard_content)
+        if _m:
+            character_prompts = storyboard_content[_m.start():].strip()
+            storyboard_content = storyboard_content[:_m.start()].strip()
+    if not scene_prompts and character_prompts:
+        _m = _re.search(r'\n\[核心设定\]', character_prompts)
+        if _m:
+            scene_prompts = character_prompts[_m.start():].strip()
+            character_prompts = character_prompts[:_m.start()].strip()
+    if not prop_prompts and scene_prompts:
+        for _pm in ['\n---道具生图提示词---', '\n--- 道具生图提示词 ---', '\n[主体描述]']:
+            _m2 = _re.search(_pm, scene_prompts)
+            if _m2:
+                prop_prompts = scene_prompts[_m2.start():].strip()
+                scene_prompts = scene_prompts[:_m2.start()].strip()
+                break
+
+    return {
+        "storyboard_content": storyboard_content,
+        "character_prompts": character_prompts,
+        "scene_prompts": scene_prompts,
+        "prop_prompts": prop_prompts,
+    }
+
+
 async def _step_scene_diagnosis(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
@@ -933,9 +1149,24 @@ async def _step_scene_diagnosis(
         modified_scenes[current_section.split("_", 2)[2]] = "\n".join(current_lines)
 
     diagnosis_text = "\n".join(diagnosis_parts)
+
+    # ── Generate storyboard+prompts for each modified scene ──
+    modified_storyboards: dict[str, dict[str, str]] = {}
+    if modified_scenes and user_id is not None:
+        storyboard_style = input_params.get("storyboard_style_prompt", "").strip()
+        try:
+            for scene_num_str, scene_text in modified_scenes.items():
+                sb_result = await _generate_storyboard_for_text(
+                    scene_text, storyboard_style, provider,
+                )
+                modified_storyboards[scene_num_str] = sb_result
+        except Exception:
+            logger.warning("Failed to generate storyboard for modified scenes", exc_info=True)
+
     return {
         "script_diagnosis": diagnosis_text.strip(),
         "modified_scenes": modified_scenes,
+        "modified_storyboards": modified_storyboards,
     }
 
 

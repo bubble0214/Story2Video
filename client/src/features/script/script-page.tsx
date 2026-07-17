@@ -126,6 +126,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
   const [frequentDiagnosisResult, setFrequentDiagnosisResult] = useState<{
     diagnosis: string;
     modifiedScenes: Record<string, string> | null;
+    modifiedStoryboards: Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }> | null;
     sceneCount: number;
   } | null>(null);
   const scenesInitializedRef = useRef(false);
@@ -719,6 +720,26 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
       if (diagnosis) {
         setDiagnosisResult(diagnosis);
         setDiagnosisModifiedScenes(modified || null);
+        // Save downstream storyboard/prompt data for modified scenes
+        const modifiedStoryboards = result.modified_storyboards as Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }> | undefined;
+        if (modifiedStoryboards) {
+          for (const [sceneNumStr, sbData] of Object.entries(modifiedStoryboards)) {
+            const idx = parseInt(sceneNumStr, 10) - 1; // 1-based → 0-based
+            if (isNaN(idx)) continue;
+            if (sbData.storyboard_content) {
+              setSceneStoryboards(prev => ({ ...prev, [idx]: sbData.storyboard_content }));
+            }
+            if (sbData.character_prompts) {
+              setSceneCharacterPrompts(prev => ({ ...prev, [idx]: sbData.character_prompts }));
+            }
+            if (sbData.scene_prompts) {
+              setSceneScenePrompts(prev => ({ ...prev, [idx]: sbData.scene_prompts }));
+            }
+            if (sbData.prop_prompts) {
+              setScenePropPrompts(prev => ({ ...prev, [idx]: sbData.prop_prompts }));
+            }
+          }
+        }
       } else {
         // No diagnosis result — just mark done
         setFinalDiagnosisDone(true);
@@ -728,7 +749,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
       setDiagnosisTaskId(null);
       toast({ title: '诊断失败，将跳过', description: polledDiagnosis.error_message || '未知错误', variant: 'destructive' });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react/exhaustive-deps
   }, [polledDiagnosis]);
 
   // ── Periodic diagnosis: every N scenes while generating ──
@@ -763,6 +784,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         setFrequentDiagnosisResult({
           diagnosis,
           modifiedScenes: modified || null,
+          modifiedStoryboards: (result.modified_storyboards as Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }>) || null,
           sceneCount: completedCount,
         });
         toast({
@@ -951,9 +973,28 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
     setGeneratedScenes(updated);
     const allIndices = Object.keys(updated).map(Number).sort((a, b) => a - b);
     setAccumulatedScript(allIndices.map(i => updated[i]).join('\n\n'));
+    // Apply downstream storyboard/prompt data
+    if (frequentDiagnosisResult.modifiedStoryboards) {
+      for (const [sceneNumStr, sbData] of Object.entries(frequentDiagnosisResult.modifiedStoryboards)) {
+        const idx = parseInt(sceneNumStr, 10) - 1;
+        if (isNaN(idx)) continue;
+        if (sbData.storyboard_content) {
+          setSceneStoryboards(prev => ({ ...prev, [idx]: sbData.storyboard_content }));
+        }
+        if (sbData.character_prompts) {
+          setSceneCharacterPrompts(prev => ({ ...prev, [idx]: sbData.character_prompts }));
+        }
+        if (sbData.scene_prompts) {
+          setSceneScenePrompts(prev => ({ ...prev, [idx]: sbData.scene_prompts }));
+        }
+        if (sbData.prop_prompts) {
+          setScenePropPrompts(prev => ({ ...prev, [idx]: sbData.prop_prompts }));
+        }
+      }
+    }
     saveImmediate();
     setFrequentDiagnosisResult(null);
-  }, [frequentDiagnosisResult, generatedScenes, saveImmediate]);
+  }, [frequentDiagnosisResult, generatedScenes, saveImmediate, setSceneStoryboards, setSceneCharacterPrompts, setSceneScenePrompts, setScenePropPrompts]);
 
   const handleDismissPeriodicDiagnosis = useCallback(() => {
     setFrequentDiagnosisResult(null);

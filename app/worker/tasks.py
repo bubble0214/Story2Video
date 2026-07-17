@@ -1648,14 +1648,33 @@ async def _step_generate_image(input_params: dict, context: dict) -> dict:
     }
 
 
-async def _step_canvas_generate_image(input_params: dict, context: dict) -> dict:
-    """Generate an image for a canvas node. Placeholder until real image API is wired."""
-    # Collect input params for documentation / future use
-    _ = context
+async def _step_canvas_generate_image(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate an image for a canvas node via Pollinations.ai (free, no key needed)."""
+    from urllib.parse import quote
+
+    prompt = input_params.get("prompt", "")
+    style_prompt = input_params.get("stylePrompt", "")
+    full_prompt = f"{prompt}, {style_prompt}".strip().strip(",") or prompt
+
+    # Pollinations.ai — free public image generation API
+    url = f"https://image.pollinations.ai/prompt/{quote(full_prompt)}"
+    params = {
+        "width": 1024,
+        "height": 1024,
+        "seed": hash(prompt) % (2**31),
+        "nologo": "true",
+    }
+    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    image_url = f"{url}?{qs}"
+
+    logger.info("Canvas generate image: %s -> %s", full_prompt[:80], image_url)
+
     return {
-        "image_url": "",
-        "image_placeholder": True,
-        "message": "Canvas image generation placeholder. Image service not yet wired.",
+        "image_url": image_url,
+        "image_placeholder": False,
+        "message": "Image generated via Pollinations.ai",
     }
 
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { canvasesApi } from '@/services/canvases';
 import { useCanvasStore } from '@/stores/canvas-store';
@@ -35,6 +35,23 @@ const TABS = [
 
 export function CanvasPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    // zustand persist may not have hydrated on first render
+    // Check if we have a stored token to determine if we should show canvas
+    const stored = localStorage.getItem('auth-storage');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed?.state?.isAuthenticated) {
+          useAuthStore.setState({ isAuthenticated: true, token: parsed.state.token, refreshToken: parsed.state.refreshToken });
+        }
+      } catch {}
+    }
+    setHydrated(true);
+  }, []);
+
   const {
     canvasId,
     setCanvasId,
@@ -123,6 +140,15 @@ export function CanvasPage() {
       }
     };
   }, []);
+
+  // Wait for zustand persist to hydrate before checking auth
+  if (!hydrated) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (

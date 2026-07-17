@@ -224,9 +224,14 @@ class DraftService:
         chapter_text = (await provider.chat(messages)).strip()
 
         chapter_title = f"第{chapter_num}章"
+        # Try markdown heading first, then plain "第X章" or "第X章 标题" format
         heading_match = re.search(r"^#+\s+(.+)$", chapter_text, re.MULTILINE)
         if heading_match:
             chapter_title = heading_match.group(1).strip()
+        else:
+            plain_match = re.search(r"^第\d+章\s*(.+)$", chapter_text, re.MULTILINE)
+            if plain_match and plain_match.group(1).strip():
+                chapter_title = f"第{chapter_num}章 {plain_match.group(1).strip()}"
 
         # ── Per-chapter quality check: 3 criteria, max 2 passes ──
         if character_rules.strip():
@@ -264,6 +269,10 @@ class DraftService:
                     heading_match = re.search(r"^#+\s+(.+)$", chapter_text, re.MULTILINE)
                     if heading_match:
                         chapter_title = heading_match.group(1).strip()
+                    else:
+                        plain_match = re.search(r"^第\d+章\s*(.+)$", chapter_text, re.MULTILINE)
+                        if plain_match and plain_match.group(1).strip():
+                            chapter_title = f"第{chapter_num}章 {plain_match.group(1).strip()}"
             except json.JSONDecodeError:
                 logger.warning("Quality check JSON parse failed, skipping auto-rewrite")
 

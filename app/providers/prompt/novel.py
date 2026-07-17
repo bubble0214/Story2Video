@@ -85,7 +85,10 @@ def build_chapter_messages(
         f"  2. 伏笔安排——根据细纲中第{chapter_num}章相关的伏笔或转折点，至少埋入1个伏笔或制造1个悬念\n"
         f"  3. 结尾钩子——本章最后一段必须有强力悬念、反转或扣人心弦的结尾，让读者迫切想看下一章\n"
         f"- 字数要求：1800-2000字{character_rules_block}{continuity_block}\n\n"
-        f"请开始写第{chapter_num}章正文。"
+        f"请开始写第{chapter_num}章正文。\n\n"
+        f"【输出格式要求】\n"
+        f"- 第一行必须是Markdown标题格式：## 第{chapter_num}章（章节名称）\n"
+        f"- 不要使用其他标题格式，正文使用标准Markdown"
     )
 
     return [

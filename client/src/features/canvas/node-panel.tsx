@@ -304,7 +304,7 @@ function InlinedSceneEditor({data,onUpdate,onGenerate}:{data:SceneData;onUpdate:
       </div>
     </SimpleModal>
 
-    {data.referenceImages&amp;&amp;data.referenceImages.length&gt;0&amp;&amp;(<div className="flex flex-wrap gap-1.5">
+    {data.referenceImages&&data.referenceImages.length>0&&(<div className="flex flex-wrap gap-1.5">
       {data.referenceImages.map((url,i)=>(<div key={i} className="relative group">
         <img src={url} alt={`r-${i}`} className="w-12 h-12 object-cover rounded border" />
         <button className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100" onClick={()=>rmImg(i)}><X className="w-3 h-3" /></button>
@@ -376,7 +376,7 @@ function InlinedSceneEditor({data,onUpdate,onGenerate}:{data:SceneData;onUpdate:
       </div>
     </SimpleModal>
 
-    {/* -- 背景音效 -- */}
+    {/* ── 背景音效 ── */}
     <Separator />
     <div className="space-y-2">
       <Label className="text-xs flex items-center gap-1"><Volume2 className="w-3 h-3" />背景音效</Label>

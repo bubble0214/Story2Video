@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, Link2, Unlink, User, Mountain, Image, Video, Music, FileText, StickyNote, X, Sparkles, Mic, Upload, Volume2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Loader2, Trash2, Link2, Unlink, User, Mountain, Image, Video, Music, FileText, StickyNote, X, Sparkles, Mic, Upload, Volume2 } from 'lucide-react';
+import { useCanvasGenerate } from '@/hooks/use-canvas-generate';
 
 import type { TextBlockData, NoteCardData, ImageBlockData, CharacterData, SceneData, AudioBlockData, AspectRatio, Resolution } from '@/types/canvas';
 
@@ -50,7 +50,7 @@ function SimpleModal({open,onClose,title,children}:{open:boolean;onClose:()=>voi
   </div>);
 }
 
-function InlinedPromptEditor({data,onUpdate}:{data:CharacterData;onUpdate:(p:Partial<CharacterData>)=>void}) {
+function InlinedPromptEditor({data,onUpdate,onGenerate}:{data:CharacterData;onUpdate:(p:Partial<CharacterData>)=>void;onGenerate?:()=>void}) {
   const [presets,setPresets]=useState<Preset[]>(loadP);
   const [ps,setPs]=useState(''); const [pn,setPn]=useState(''); const [pp,setPp]=useState('');
   const [showStyle,setShowStyle]=useState(false);
@@ -119,7 +119,7 @@ function InlinedPromptEditor({data,onUpdate}:{data:CharacterData;onUpdate:(p:Par
       <textarea className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" value={buf} onChange={e=>setBuf(e.target.value)} rows={5} placeholder="编辑完整的提示词..." />
       <div className="flex gap-2 justify-end mt-3">
         <Button variant="outline" size="sm" onClick={()=>setShowGen(false)}>取消</Button>
-        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false)}}>确认生成</Button>
+        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false);onGenerate?.()}}>确认生成</Button>
       </div>
     </SimpleModal>
 
@@ -147,7 +147,7 @@ function InlinedPromptEditor({data,onUpdate}:{data:CharacterData;onUpdate:(p:Par
       </Select>
       <Button variant="outline" size="sm" className="h-7 w-7 p-0" title="画面比例/清晰度" onClick={()=>setShowRatio(true)}><ScanLine className="w-3.5 h-3.5" /></Button>
       <Button variant="outline" size="sm" className="h-7 w-7 p-0" title="提示词预设" onClick={()=>setShowPreset(true)}><FileJson className="w-3.5 h-3.5" /></Button>
-      <Button variant="secondary" size="sm" className="h-7 px-2 text-xs gap-1 ml-auto" onClick={()=>{}}><Wand2 className="w-3.5 h-3.5" />优化</Button>
+      <Button variant="secondary" size="sm" className="h-7 px-2 text-xs gap-1 ml-auto" onClick={onGenerate}><Wand2 className="w-3.5 h-3.5" />优化</Button>
     </div>
 
     {/* ── 音色 ── */}
@@ -232,7 +232,7 @@ function InlinedPromptEditor({data,onUpdate}:{data:CharacterData;onUpdate:(p:Par
   </div>);
 }
 
-function InlinedSceneEditor({data,onUpdate}:{data:SceneData;onUpdate:(p:Partial<SceneData>)=>void}) {
+function InlinedSceneEditor({data,onUpdate,onGenerate}:{data:SceneData;onUpdate:(p:Partial<SceneData>)=>void;onGenerate?:()=>void}) {
   const [presets,setPresets]=useState<Preset[]>(loadP);
   const [ps,setPs]=useState(''); const [pn,setPn]=useState(''); const [pp,setPp]=useState('');
   const [showStyle,setShowStyle]=useState(false);
@@ -300,11 +300,11 @@ function InlinedSceneEditor({data,onUpdate}:{data:SceneData;onUpdate:(p:Partial<
       <textarea className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" value={buf} onChange={e=>setBuf(e.target.value)} rows={5} />
       <div className="flex gap-2 justify-end mt-3">
         <Button variant="outline" size="sm" onClick={()=>setShowGen(false)}>取消</Button>
-        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false)}}>确认</Button>
+        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false);onGenerate?.()}}>确认</Button>
       </div>
     </SimpleModal>
 
-    {data.referenceImages&&data.referenceImages.length>0&&(<div className="flex flex-wrap gap-1.5">
+    {data.referenceImages&amp;&amp;data.referenceImages.length&gt;0&amp;&amp;(<div className="flex flex-wrap gap-1.5">
       {data.referenceImages.map((url,i)=>(<div key={i} className="relative group">
         <img src={url} alt={`r-${i}`} className="w-12 h-12 object-cover rounded border" />
         <button className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100" onClick={()=>rmImg(i)}><X className="w-3 h-3" /></button>
@@ -376,7 +376,7 @@ function InlinedSceneEditor({data,onUpdate}:{data:SceneData;onUpdate:(p:Partial<
       </div>
     </SimpleModal>
 
-    {/* ── 背景音效 ── */}
+    {/* -- 背景音效 -- */}
     <Separator />
     <div className="space-y-2">
       <Label className="text-xs flex items-center gap-1"><Volume2 className="w-3 h-3" />背景音效</Label>
@@ -399,7 +399,7 @@ function InlinedSceneEditor({data,onUpdate}:{data:SceneData;onUpdate:(p:Partial<
   </div>);
 }
 
-function InlinedImageEditor({data,onUpdate}:{data:ImageBlockData;onUpdate:(p:Partial<ImageBlockData>)=>void}) {
+function InlinedImageEditor({data,onUpdate,onGenerate}:{data:ImageBlockData;onUpdate:(p:Partial<ImageBlockData>)=>void;onGenerate?:()=>void}) {
   const [presets,setPresets]=useState<Preset[]>(loadP);
   const [ps,setPs]=useState(''); const [pn,setPn]=useState(''); const [pp,setPp]=useState('');
   const [showStyle,setShowStyle]=useState(false);
@@ -444,7 +444,7 @@ function InlinedImageEditor({data,onUpdate}:{data:ImageBlockData;onUpdate:(p:Par
       <textarea className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" value={buf} onChange={e=>setBuf(e.target.value)} rows={5} />
       <div className="flex gap-2 justify-end mt-3">
         <Button variant="outline" size="sm" onClick={()=>setShowGen(false)}>取消</Button>
-        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false)}}>确认</Button>
+        <Button size="sm" onClick={()=>{onUpdate({prompt:buf});setShowGen(false);onGenerate?.()}}>确认</Button>
       </div>
     </SimpleModal>
 
@@ -529,6 +529,7 @@ export function NodePanel() {
   const [showAudioStyle, setShowAudioStyle] = useState(false);
   const [audioStyle, setAudioStyle] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const canvasGenerate = useCanvasGenerate();
 
   const { data: assetTasks } = useQuery({
     queryKey: ['asset-tasks-panel'],
@@ -554,6 +555,23 @@ export function NodePanel() {
     updateNodeData(selectedNodeId, { imageUrl: URL.createObjectURL(f) } as Partial<TextBlockData>);
     e.target.value = '';
   };
+
+  const handleGenerate = useCallback(() => {
+    if (!selectedNodeId || !data) return;
+    const nodeType = data.type;
+    if (nodeType !== 'character' && nodeType !== 'scene' && nodeType !== 'imageBlock') return;
+    const nodeData = data as CharacterData | SceneData | ImageBlockData;
+    canvasGenerate.generate({
+      nodeId: selectedNodeId,
+      nodeType: nodeType as 'character' | 'scene' | 'imageBlock',
+      prompt: nodeData.prompt ?? '',
+      stylePrompt: nodeData.stylePrompt,
+      model: nodeData.model,
+      resolution: nodeData.resolution,
+      aspectRatio: nodeData.aspectRatio,
+      referenceImages: nodeData.referenceImages,
+    });
+  }, [selectedNodeId, data, canvasGenerate.generate]);
 
   const handleAssetSelect = (url: string) => {
     if (!selectedNodeId) return;
@@ -625,6 +643,13 @@ export function NodePanel() {
         </button>
       </div>
 
+      {canvasGenerate.isGenerating && (
+        <div className="px-4 py-2 border-b bg-blue-500/10 flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+          <span className="text-xs text-blue-600">图片生成中...</span>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* Character-specific fields */}
 
@@ -633,6 +658,7 @@ export function NodePanel() {
           <InlinedPromptEditor
             data={data as CharacterData}
             onUpdate={(patch) => updateNodeData(node.id, patch as Partial<CharacterData>)}
+            onGenerate={handleGenerate}
           />
         )}
 
@@ -641,6 +667,7 @@ export function NodePanel() {
           <InlinedSceneEditor
             data={data as SceneData}
             onUpdate={(patch) => updateNodeData(node.id, patch as Partial<SceneData>)}
+            onGenerate={handleGenerate}
           />
         )}
 
@@ -742,7 +769,7 @@ export function NodePanel() {
         )}
 
         {/* Image block editor */}
-        {data.type === 'imageBlock' && <InlinedImageEditor data={data as ImageBlockData} onUpdate={(patch) => updateNodeData(node.id, patch as Partial<ImageBlockData>)} />}
+        {data.type === 'imageBlock' && <InlinedImageEditor data={data as ImageBlockData} onUpdate={(patch) => updateNodeData(node.id, patch as Partial<ImageBlockData>)} onGenerate={handleGenerate} />}
 
         <Separator />
 

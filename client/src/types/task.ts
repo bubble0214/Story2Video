@@ -17,6 +17,7 @@ export type WorkflowType =
   | 'generate_song'
   | 'generate_music_style'
   | 'generate_image'
+  | 'canvas_generate_image'
   | 'generate_video'
   | 'generate_mv'
   | 'generate_mv_storyboard';

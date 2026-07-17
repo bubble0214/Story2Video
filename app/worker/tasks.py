@@ -1648,6 +1648,17 @@ async def _step_generate_image(input_params: dict, context: dict) -> dict:
     }
 
 
+async def _step_canvas_generate_image(input_params: dict, context: dict) -> dict:
+    """Generate an image for a canvas node. Placeholder until real image API is wired."""
+    # Collect input params for documentation / future use
+    _ = context
+    return {
+        "image_url": "",
+        "image_placeholder": True,
+        "message": "Canvas image generation placeholder. Image service not yet wired.",
+    }
+
+
 async def _step_generate_video(input_params: dict, context: dict) -> dict:
     """Generate a video from novel + song.  Placeholder for video-gen service."""
     # TODO: Replace with actual video-generation API call.
@@ -1738,6 +1749,7 @@ _STEP_REGISTRY = {
     "extract_lyrics_core": _step_extract_lyrics_core,
     "generate_song": _step_generate_song,
     "generate_image": _step_generate_image,
+    "canvas_generate_image": _step_canvas_generate_image,
     "generate_video": _step_generate_video,
     "generate_mv": _step_generate_mv,
     "generate_mv_storyboard": _step_generate_mv_storyboard,
@@ -1763,6 +1775,7 @@ _STEP_WEIGHTS = {
     "extract_lyrics_core": 10.0,
     "generate_song": 10.0,
     "generate_image": 5.0,
+    "canvas_generate_image": 5.0,
     "generate_video": 5.0,
     "generate_mv": 15.0,
     "generate_mv_storyboard": 10.0,
@@ -1792,6 +1805,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "extract_lyrics_core": ["extract_lyrics_core"],
     "generate_song": ["generate_lyrics", "generate_song"],
     "generate_image": ["generate_song", "generate_image"],
+    "canvas_generate_image": ["canvas_generate_image"],
     "generate_video": [
         "search_reference_novels",
         "generate_novel",
@@ -1828,6 +1842,7 @@ _STEP_LABELS: dict[str, str] = {
     "extract_lyrics_core": "提取歌曲内核",
     "generate_song": "生成歌曲",
     "generate_image": "生成图片",
+    "canvas_generate_image": "画布图片生成",
     "generate_video": "生成视频",
     "generate_mv": "生成音乐视频",
     "generate_mv_storyboard": "生成MV分镜脚本",
@@ -2108,6 +2123,18 @@ def workflow_generate_script(task_id: str, user_id: str, input_params: dict) -> 
 def workflow_generate_image(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate song → generate image."""
     steps = _WORKFLOWS["generate_image"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_canvas_generate_image",
+    acks_late=True,
+    soft_time_limit=600,
+    time_limit=900,
+)
+def workflow_canvas_generate_image(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Single-step workflow: generate image for a canvas node."""
+    steps = _WORKFLOWS["canvas_generate_image"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

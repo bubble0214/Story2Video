@@ -11,7 +11,7 @@ class CreateTaskReq(BaseModel):
 
     workflow_type: str = Field(
         ...,
-        pattern=r"^(generate_outline_only|generate_volume_outline_only|generate_character_rules_only|generate_script|generate_analyze_novel|generate_script_structure|generate_scene_outline|generate_script_diagnosis|generate_single_scene|generate_scene_diagnosis|generate_novel_tweet|generate_video_tweet|generate_storyboard|generate_lyrics|extract_lyrics_core|generate_song|generate_music_style|generate_image|generate_video|generate_mv|generate_mv_storyboard)$",
+        pattern=r"^(generate_outline_only|generate_volume_outline_only|generate_character_rules_only|generate_script|generate_analyze_novel|generate_script_structure|generate_scene_outline|generate_script_diagnosis|generate_single_scene|generate_scene_diagnosis|generate_novel_tweet|generate_video_tweet|generate_storyboard|generate_lyrics|extract_lyrics_core|generate_song|generate_music_style|generate_image|canvas_generate_image|generate_video|generate_mv|generate_mv_storyboard)$",
         description="Workflow type to execute",
     )
     input_params: dict = Field(

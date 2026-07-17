@@ -364,25 +364,52 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
     }
   }, [setNovelContent]);
 
-  // ── Novel source: select from assets ──
+  // ── Novel source: select from assets (tasks + drafts) ──
   const { data: assetNovelsData } = useQuery({
     queryKey: ['asset-novels'],
     queryFn: async () => {
-      const resp = await tasksApi.list({ workflow_type: undefined, limit: 50 });
-      return resp.data;
+      const [tasksResp, draftsResp] = await Promise.all([
+        tasksApi.list({ workflow_type: undefined, limit: 50 }),
+        draftsApi.list({ workflow_type: 'novel', limit: 50 }),
+      ]);
+      return { tasks: tasksResp.data, drafts: draftsResp.data };
     },
     enabled: assetPopoverOpen,
   });
-  const assetNovels: TaskResp[] = (assetNovelsData?.items ?? [])
-    .filter((t: TaskResp) => t.status === 'SUCCESS' && t.result?.novel_content);
+  interface AssetNovelItem {
+    id: string; title: string; content: string; source: 'task' | 'draft';
+  }
+  const assetNovels: AssetNovelItem[] = [];
+  if (assetNovelsData) {
+    const taskNovels: AssetNovelItem[] = (assetNovelsData.tasks?.items ?? [])
+      .filter((t: TaskResp) => t.status === 'SUCCESS' && t.result?.novel_content)
+      .map((t: TaskResp) => ({
+        id: t.id, source: 'task' as const,
+        title: (t.result?.title as string) || t.id.slice(0, 8),
+        content: t.result!.novel_content as string,
+      }));
+    assetNovels.push(...taskNovels);
+    const draftNovels: AssetNovelItem[] = assetNovelsData.drafts
+      .filter((d) => d.status === 'completed')
+      .map((d) => ({ id: d.id, source: 'draft' as const, title: d.title, content: '' }));
+    assetNovels.push(...draftNovels);
+  }
 
-  const handleSelectAssetNovel = useCallback((task: TaskResp) => {
-    const content = task.result?.novel_content as string;
+  const handleSelectAssetNovel = useCallback(async (item: AssetNovelItem) => {
+    let content = item.content;
+    if (!content && item.source === 'draft') {
+      try {
+        const { data: draft } = await draftsApi.get(item.id);
+        content = (draft.step_data as DraftStepData)?.novelContent || '';
+      } catch { /* ignore */ }
+    }
     if (content) {
       setNovelContent(content);
       setNovelAnalysis(null);
-      setScriptTitle((task.result?.title as string) ?? task.id.slice(0, 8));
-      toast({ title: '已加载小说', description: (task.result?.title as string) ?? task.id.slice(0, 8) });
+      setScriptTitle(item.title);
+      toast({ title: '已加载小说', description: item.title });
+    } else {
+      toast({ title: '加载失败', description: '该小说内容不可用', variant: 'destructive' });
     }
     setAssetPopoverOpen(false);
   }, [setNovelContent]);
@@ -1225,15 +1252,15 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                     {assetNovels.length === 0 && (
                       <div className="px-2 py-2 text-xs text-muted-foreground">暂无</div>
                     )}
-                    {assetNovels.slice(0, 5).map((task) => (
+                    {assetNovels.slice(0, 5).map((item) => (
                       <button
-                        key={task.id}
+                        key={item.id}
                         className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground text-left"
-                        onClick={() => handleSelectAssetNovel(task)}
+                        onClick={() => handleSelectAssetNovel(item)}
                       >
                         <span className="text-xs text-muted-foreground shrink-0">📖</span>
                         <span className="truncate text-xs">
-                          {(task.result?.title as string) || task.id.slice(0, 8)}
+                          {item.title || item.id.slice(0, 8)}
                         </span>
                       </button>
                     ))}

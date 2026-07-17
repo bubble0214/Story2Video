@@ -1245,17 +1245,18 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
               {assetPopoverOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setAssetPopoverOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-md border bg-popover p-1 shadow-md text-sm">
-                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-72 rounded-lg border bg-popover p-3 shadow-lg text-sm">
+                    <div className="px-1 py-1.5 text-xs font-medium text-muted-foreground border-b mb-2">
                       已生成的小说
                     </div>
                     {assetNovels.length === 0 && (
-                      <div className="px-2 py-2 text-xs text-muted-foreground">暂无</div>
+                      <div className="px-2 py-4 text-xs text-muted-foreground text-center">暂无已生成的小说</div>
                     )}
+                    <div className="max-h-48 overflow-y-auto space-y-1">
                     {assetNovels.slice(0, 5).map((item) => (
                       <button
                         key={item.id}
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground text-left"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-2 hover:bg-accent hover:text-accent-foreground text-left"
                         onClick={() => handleSelectAssetNovel(item)}
                       >
                         <span className="text-xs text-muted-foreground shrink-0">📖</span>
@@ -1264,6 +1265,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                         </span>
                       </button>
                     ))}
+                    </div>
                   </div>
                 </>
               )}

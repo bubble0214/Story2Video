@@ -557,21 +557,24 @@ export function NodePanel() {
   };
 
   const handleGenerate = useCallback(() => {
-    if (!selectedNodeId || !data) return;
-    const nodeType = data.type;
+    if (!selectedNodeId) return;
+    const { nodes } = useCanvasStore.getState();
+    const node = nodes.find((n) => n.id === selectedNodeId);
+    if (!node) return;
+    const nodeData = node.data;
+    const nodeType = nodeData.type;
     if (nodeType !== 'character' && nodeType !== 'scene' && nodeType !== 'imageBlock') return;
-    const nodeData = data as CharacterData | SceneData | ImageBlockData;
     canvasGenerate.generate({
       nodeId: selectedNodeId,
       nodeType: nodeType as 'character' | 'scene' | 'imageBlock',
-      prompt: nodeData.prompt ?? '',
-      stylePrompt: nodeData.stylePrompt,
-      model: nodeData.model,
-      resolution: nodeData.resolution,
-      aspectRatio: nodeData.aspectRatio,
-      referenceImages: nodeData.referenceImages,
+      prompt: (nodeData as CharacterData).prompt ?? '',
+      stylePrompt: (nodeData as CharacterData).stylePrompt,
+      model: (nodeData as CharacterData).model,
+      resolution: (nodeData as CharacterData).resolution,
+      aspectRatio: (nodeData as CharacterData).aspectRatio,
+      referenceImages: (nodeData as CharacterData).referenceImages,
     });
-  }, [selectedNodeId, data, canvasGenerate.generate]);
+  }, [selectedNodeId, canvasGenerate.generate]);
 
   const handleAssetSelect = (url: string) => {
     if (!selectedNodeId) return;

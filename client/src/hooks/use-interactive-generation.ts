@@ -248,7 +248,13 @@ export function useInteractiveGeneration({ draftId, genModel, saveDraft }: UseIn
       await saveDraft('generate', { qualityReport });
     }
     setQualityCheckBlocked(false);
-    toast({ title: '修改已应用', description: `已更新 ${qualityRevisions.length} 章内容。` });
+    const chapterLabels = qualityRevisions
+      .map((r) => chapters[r.chapter_index]?.title || `第${r.chapter_index + 1}章`)
+      .filter(Boolean);
+    toast({
+      title: '修改已应用',
+      description: `已更新 ${qualityRevisions.length} 章：${chapterLabels.join('、')}`,
+    });
   }, [chapters, qualityRevisions, qualityReport, qualityRevisionsSummary, saveDraft, setNovelContent]);
 
   const handleGenerateChapter = useCallback(() => {

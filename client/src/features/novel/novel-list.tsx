@@ -432,19 +432,24 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
               {/* Chapter navigation tabs */}
               {chapters.length > 0 && (
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  {chapters.map((ch: { title: string; content: string }, i: number) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedChapterIndex(i)}
-                      className={`shrink-0 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        i === selectedChapterIndex
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      }`}
-                    >
-                      {ch.title.length > 12 ? ch.title.slice(0, 12) + '...' : ch.title}
-                    </button>
-                  ))}
+                  {chapters.map((ch: { title: string; content: string }, i: number) => {
+                    const isRevised = qualityRevisions.some((r) => r.chapter_index === i);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedChapterIndex(i)}
+                        className={`shrink-0 px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          i === selectedChapterIndex
+                            ? 'bg-primary text-primary-foreground'
+                            : isRevised
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {isRevised ? '✦ ' : ''}{ch.title.length > 12 ? ch.title.slice(0, 12) + '...' : ch.title}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -453,7 +458,12 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
                 <Card>
                   <CardContent className="pt-4 pb-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium">{chapters[selectedChapterIndex].title}</h3>
+                      <h3 className="text-sm font-medium">
+                        {chapters[selectedChapterIndex].title}
+                        {qualityRevisions.some((r) => r.chapter_index === selectedChapterIndex) && (
+                          <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">（已修改）</span>
+                        )}
+                      </h3>
                     </div>
                     <textarea
                       className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-sans leading-relaxed"

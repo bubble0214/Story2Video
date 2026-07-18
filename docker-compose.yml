@@ -115,6 +115,21 @@ services:
              --queues=default,novel_generation,script_generation,lyrics_generation,music_generation,image_generation,video_generation,dead_letter"
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: "http://app:8000/api"
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

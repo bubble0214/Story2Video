@@ -5,6 +5,7 @@ const API_TARGET =
   "http://localhost:8005";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {

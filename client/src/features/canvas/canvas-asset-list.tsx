@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import { useCanvasStore } from '@/stores/canvas-store';
 import {
   User,
@@ -14,8 +15,17 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { Node } from '@xyflow/react';
 import type { CanvasNodeData, AssetCategory } from '@/types/canvas';
+import { useCanvasParseScript } from '@/hooks/use-canvas-parse-script';
 
 interface AssetCardProps {
   node: Node<CanvasNodeData>;
@@ -118,6 +128,20 @@ export function AssetList({ category }: AssetListProps) {
   const config = CATEGORY_CONFIG[category];
   const assetNodes = nodes.filter((n) => config.nodeTypes.includes(n.type ?? ''));
 
+  const [showParseDialog, setShowParseDialog] = useState(false);
+  const [scriptText, setScriptText] = useState('');
+  const { parse, isParsing } = useCanvasParseScript();
+  const prevParsing = useRef(false);
+
+  // Auto-close dialog when parsing completes
+  useEffect(() => {
+    if (prevParsing.current && !isParsing && showParseDialog) {
+      setShowParseDialog(false);
+      setScriptText('');
+    }
+    prevParsing.current = isParsing;
+  }, [isParsing, showParseDialog]);
+
   const handleSelect = (id: string) => {
     focusOnNode(id);
     setActiveAssetTab('canvas');
@@ -141,6 +165,11 @@ export function AssetList({ category }: AssetListProps) {
     // For now, just select the node
     focusOnNode(nodeId);
     setActiveAssetTab('canvas');
+  };
+
+  const handleParseScript = () => {
+    if (!scriptText.trim()) return;
+    parse({ scriptText: scriptText.trim(), parseType: 'all' });
   };
 
   return (
@@ -183,10 +212,16 @@ export function AssetList({ category }: AssetListProps) {
           <p className="text-xs text-muted-foreground/60 mb-4">
             从剧本解析生成，或手动添加
           </p>
-          <Button size="sm" onClick={handleAddNew}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            新建{config.label}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowParseDialog(true)}>
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              从剧本解析
+            </Button>
+            <Button size="sm" onClick={handleAddNew}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              新建{config.label}
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -200,6 +235,50 @@ export function AssetList({ category }: AssetListProps) {
           ))}
         </div>
       )}
+
+      {/* Parse from script dialog */}
+      <Dialog open={showParseDialog} onOpenChange={(open) => { if (!isParsing) setShowParseDialog(open); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>从剧本解析生成</DialogTitle>
+            <DialogDescription>
+              粘贴剧本原文，系统将自动提取角色和场景信息并添加到画布中。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <textarea
+              className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+              placeholder="请粘贴剧本内容..."
+              value={scriptText}
+              onChange={(e) => setScriptText(e.target.value)}
+              disabled={isParsing}
+            />
+            {isParsing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                正在解析中...
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setShowParseDialog(false); setScriptText(''); }}
+              disabled={isParsing}
+            >
+              取消
+            </Button>
+            <Button onClick={handleParseScript} disabled={isParsing || !scriptText.trim()}>
+              {isParsing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  解析中
+                </>
+              ) : '开始解析'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

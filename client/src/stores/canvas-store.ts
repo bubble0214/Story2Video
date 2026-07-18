@@ -70,7 +70,7 @@ interface CanvasStore {
   onConnect: OnConnect;
 
   // Node CRUD
-  addNode: (type: CanvasNodeData['type']) => void;
+  addNode: (type: CanvasNodeData['type'], initialData?: Partial<CanvasNodeData>) => void;
   removeSelectedNode: () => void;
   removeNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, data: Partial<CanvasNodeData>) => void;
@@ -182,7 +182,7 @@ export const useCanvasStore = create<CanvasStore>()((set, get) => ({
       isDirty: true,
     })),
 
-  addNode: (type) => {
+  addNode: (type, initialData) => {
     nodeCounter += 1;
     const id = `${type}-${nodeCounter}`;
     const now = new Date().toISOString();
@@ -212,6 +212,10 @@ export const useCanvasStore = create<CanvasStore>()((set, get) => ({
         break;
       default:
         data = { type: 'textBlock', label: `Text ${nodeCounter}`, content: '', updatedAt: now } as CanvasNodeData;
+    }
+
+    if (initialData) {
+      data = { ...data, ...initialData, updatedAt: now } as CanvasNodeData;
     }
 
     const newNode: Node<CanvasNodeData> = {

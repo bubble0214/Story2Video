@@ -1648,6 +1648,20 @@ async def _step_generate_image(input_params: dict, context: dict) -> dict:
     }
 
 
+_ASPECT_MAP: dict[str, tuple[int, int]] = {
+    "16:9": (1216, 684),
+    "21:9": (1216, 520),
+    "9:16": (684, 1216),
+    "4:3": (1024, 768),
+    "3:4": (768, 1024),
+    "1:1": (1024, 1024),
+}
+_RES_MAP: dict[str, int] = {
+    "2K": 1024,
+    "4K": 2048,
+}
+
+
 async def _step_canvas_generate_image(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
@@ -1658,18 +1672,29 @@ async def _step_canvas_generate_image(
     style_prompt = input_params.get("stylePrompt", "")
     full_prompt = f"{prompt}, {style_prompt}".strip().strip(",") or prompt
 
-    # Pollinations.ai — free public image generation API
+    aspect = input_params.get("aspectRatio", "16:9")
+    resolution = input_params.get("resolution", "2K")
+    base_res = _RES_MAP.get(resolution, 1024)
+
+    if aspect in _ASPECT_MAP:
+        w_ratio, h_ratio = _ASPECT_MAP[aspect]
+        scale = base_res / max(w_ratio, h_ratio)
+        width = round(w_ratio * scale)
+        height = round(h_ratio * scale)
+    else:
+        width = height = base_res
+
     url = f"https://image.pollinations.ai/prompt/{quote(full_prompt)}"
     params = {
-        "width": 1024,
-        "height": 1024,
+        "width": width,
+        "height": height,
         "seed": hash(prompt) % (2**31),
         "nologo": "true",
     }
     qs = "&".join(f"{k}={v}" for k, v in params.items())
     image_url = f"{url}?{qs}"
 
-    logger.info("Canvas generate image: %s -> %s", full_prompt[:80], image_url)
+    logger.info("Canvas generate image: %s -> %s (%dx%d)", full_prompt[:80], image_url, width, height)
 
     return {
         "image_url": image_url,
@@ -1746,6 +1771,85 @@ async def _step_generate_mv_storyboard(
     return {"mv_storyboard": content}
 
 
+async def _step_canvas_parse_script(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Parse raw script text and extract characters and scenes via LLM.
+
+    input_params expects:
+      - script_text (str): the raw script content to parse
+      - parse_type (str, optional): "characters" | "scenes" | "all" (default "all")
+
+    Returns:
+      - characters: list of {name, description, appearanceCount}
+      - scenes: list of {name, description, appearanceCount}
+    """
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    script_text = input_params.get("script_text", "").strip()
+    if not script_text:
+        return {"characters": [], "scenes": []}
+
+    parse_type = input_params.get("parse_type", "all")
+
+    system_prompt = (
+        "You are a professional script analyst. Given a script text, extract the following structured information.\n\n"
+        "1. Characters: For each character appearing in the script, extract:\n"
+        "   - name: character name\n"
+        "   - description: brief physical/personality description (infer from context)\n"
+        "   - appearanceCount: number of scenes this character appears in\n\n"
+        "2. Scenes: For each distinct scene/location in the script, extract:\n"
+        "   - name: scene name or location description\n"
+        "   - description: brief description of the scene setting\n"
+        "   - appearanceCount: number of times this scene type appears\n\n"
+        "Output ONLY valid JSON with this exact structure (no markdown fences, no extra text):\n"
+    )
+
+    if parse_type == "characters":
+        system_prompt += '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
+        user_prompt = f"Extract all characters from this script:\n\n{script_text}"
+    elif parse_type == "scenes":
+        system_prompt += '{"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
+        user_prompt = f"Extract all scenes/locations from this script:\n\n{script_text}"
+    else:
+        system_prompt += (
+            '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0}], '
+            '"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
+        )
+        user_prompt = f"Extract all characters and scenes from this script:\n\n{script_text}"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    content = await provider.chat(messages)
+
+    # Parse the JSON response — be lenient with markdown fences
+    content_stripped = content.strip()
+    if content_stripped.startswith("```"):
+        lines = content_stripped.split("\n")
+        lines = [l for l in lines if not l.startswith("```")]
+        content_stripped = "\n".join(lines).strip()
+
+    try:
+        result = json.loads(content_stripped)
+    except json.JSONDecodeError:
+        logger.error("Failed to parse LLM output as JSON: %s", content[:200])
+        return {"characters": [], "scenes": [], "_raw_llm_output": content}
+
+    return {
+        "characters": result.get("characters", []),
+        "scenes": result.get("scenes", []),
+    }
+
+
 # ── Step registry ─────────────────────────────────────────────────────
 
 _STEP_REGISTRY = {
@@ -1769,6 +1873,7 @@ _STEP_REGISTRY = {
     "generate_song": _step_generate_song,
     "generate_image": _step_generate_image,
     "canvas_generate_image": _step_canvas_generate_image,
+    "canvas_parse_script": _step_canvas_parse_script,
     "generate_video": _step_generate_video,
     "generate_mv": _step_generate_mv,
     "generate_mv_storyboard": _step_generate_mv_storyboard,
@@ -1795,6 +1900,7 @@ _STEP_WEIGHTS = {
     "generate_song": 10.0,
     "generate_image": 5.0,
     "canvas_generate_image": 5.0,
+    "canvas_parse_script": 10.0,
     "generate_video": 5.0,
     "generate_mv": 15.0,
     "generate_mv_storyboard": 10.0,
@@ -1825,6 +1931,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_song": ["generate_lyrics", "generate_song"],
     "generate_image": ["generate_song", "generate_image"],
     "canvas_generate_image": ["canvas_generate_image"],
+    "canvas_parse_script": ["canvas_parse_script"],
     "generate_video": [
         "search_reference_novels",
         "generate_novel",
@@ -1862,6 +1969,7 @@ _STEP_LABELS: dict[str, str] = {
     "generate_song": "生成歌曲",
     "generate_image": "生成图片",
     "canvas_generate_image": "画布图片生成",
+    "canvas_parse_script": "剧本解析中",
     "generate_video": "生成视频",
     "generate_mv": "生成音乐视频",
     "generate_mv_storyboard": "生成MV分镜脚本",
@@ -2178,6 +2286,18 @@ def workflow_generate_single_scene(task_id: str, user_id: str, input_params: dic
 def workflow_generate_scene_diagnosis(task_id: str, user_id: str, input_params: dict) -> dict:
     """Diagnose scenes and return diagnosis + modified scenes (interactive mode)."""
     steps = _WORKFLOWS["generate_scene_diagnosis"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_canvas_parse_script",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_canvas_parse_script(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Single-step workflow: parse script text to extract characters and scenes."""
+    steps = _WORKFLOWS["canvas_parse_script"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

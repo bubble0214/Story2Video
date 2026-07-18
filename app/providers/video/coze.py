@@ -78,24 +78,23 @@ class CozeVideoProvider(BaseVideoProvider):
         if self._space_id:
             extra_args[0:0] = ["--space-id", self._space_id]
 
-        # On Windows, npm-installed .cmd files must be run through a shell.
+        # On Windows, .cmd files need cmd.exe to run, but we use
+        # create_subprocess_exec to avoid shell injection.
         use_shell = sys.platform == "win32" and cli_cmd.endswith(".cmd")
 
         if use_shell:
-            escaped_prompt = prompt.replace('"', '\\"')
-            flags_str = " ".join(
-                f'"{a}"' if " " in a else a for a in extra_args
-            )
-            cmd_str = (
-                f'"{cli_cmd}" generate video create "{escaped_prompt}"'
-                f" {flags_str} --wait --format json"
-            )
+            comspec = os.environ.get("COMSPEC", "cmd.exe")
+            args = [
+                comspec, "/c", cli_cmd, "generate", "video", "create", prompt,
+                *extra_args,
+                "--wait", "--format", "json",
+            ]
             logger.info(
-                "Running Coze CLI (shell): %s (prompt truncated: %.60s…)",
-                cmd_str, prompt,
+                "Running Coze CLI (comspec): %s (prompt truncated: %.60s…)",
+                " ".join(args), prompt,
             )
-            proc = await asyncio.create_subprocess_shell(
-                cmd_str,
+            proc = await asyncio.create_subprocess_exec(
+                *args,
                 env={**os.environ, **env},
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

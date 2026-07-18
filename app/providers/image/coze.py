@@ -33,9 +33,9 @@ def _get_coze_cli() -> str:
         if os.path.isfile(c):
             _COZE_CLI_CMD = c
             return c
-    # Not found — will raise at call time
-    _COZE_CLI_CMD = "coze"
-    return _COZE_CLI_CMD
+    raise FileNotFoundError(
+        "Coze CLI binary not found. Install it with: npm install -g @coze/cli"
+    )
 
 
 class CozeImageProvider(BaseImageProvider):
@@ -81,16 +81,20 @@ class CozeImageProvider(BaseImageProvider):
 
         cli_cmd = _get_coze_cli()
 
-        # On Windows, npm-installed .cmd files must be run through a shell.
+        # On Windows, .cmd files need cmd.exe to run, but we use
+        # create_subprocess_exec to avoid shell injection.
         use_shell = sys.platform == "win32" and cli_cmd.endswith(".cmd")
 
         if use_shell:
-            flags_str = " ".join(f'"{a}"' if " " in a else a for a in extra_args)
-            sep = " " if flags_str else ""
-            cmd_str = f'"{cli_cmd}" generate image "{prompt}"{sep}{flags_str} --format json'
-            logger.info("Running Coze CLI (shell): %s (prompt truncated: %.60s…)", cmd_str, prompt)
-            proc = await asyncio.create_subprocess_shell(
-                cmd_str,
+            comspec = os.environ.get("COMSPEC", "cmd.exe")
+            args = [
+                comspec, "/c", cli_cmd, "generate", "image", prompt,
+                *extra_args,
+                "--format", "json",
+            ]
+            logger.info("Running Coze CLI (comspec): %s (prompt truncated: %.60s…)", " ".join(args), prompt)
+            proc = await asyncio.create_subprocess_exec(
+                *args,
                 env={**os.environ, **env},
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

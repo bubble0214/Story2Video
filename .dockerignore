@@ -1,0 +1,11 @@
+node_modules
+client/node_modules
+.git
+__pycache__
+*.pyc
+.env
+.env.production
+*.md
+.gitkeep
+.venv
+venv

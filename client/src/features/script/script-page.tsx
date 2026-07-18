@@ -32,7 +32,7 @@ import {
 import type { TaskResp } from '@/types/task';
 import type { ParsedSceneItem } from '@/types/draft';
 import { draftsApi } from '@/services/drafts';
-import type { NovelDraftStepData, DraftStepData } from '@/types/draft';
+import type { DraftStepData, NovelDraftStepData, Draft } from '@/types/draft';
 import { scriptsApi } from '@/services/scripts';
 
 const GENRE_OPTIONS = ['科幻', '古装', '悬疑', '爱情', '奇幻', '战争', '文艺', '喜剧', '恐怖'];
@@ -400,8 +400,8 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
     let content = item.content;
     if (!content && item.source === 'draft') {
       try {
-        const { data: draft } = await draftsApi.get(item.id);
-        content = (draft.step_data as NovelDraftStepData)?.novelContent || '';
+        const { data: draft } = await draftsApi.get<Draft & { step_data: NovelDraftStepData }>(item.id);
+        content = draft.step_data?.novelContent || '';
       } catch { /* ignore */ }
     }
     if (content) {

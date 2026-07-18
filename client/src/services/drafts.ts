@@ -7,6 +7,7 @@ import type {
   FinalNovelDecisionResp,
   GenerateChapterReq,
   GenerateChapterResp,
+  NovelDraftStepData,
   SubmitVolumeDecisionResp,
   VolumeReviewDecisionReq,
   UpsertDraftReq,
@@ -23,8 +24,8 @@ export const draftsApi = {
   list: (params?: { limit?: number; offset?: number; workflow_type?: string }) =>
     apiClient.get<DraftListItem[]>('/v1/drafts/list', { params }),
 
-  get: (id: string) =>
-    apiClient.get<Draft>(`/v1/drafts/${id}`),
+  get: <T = Draft>(id: string) =>
+    apiClient.get<T>(`/v1/drafts/${id}`),
 
   update: (id: string, body: UpdateDraftReq) =>
     apiClient.put<Draft>(`/v1/drafts/${id}`, body),

@@ -80,9 +80,9 @@ class CozeVideoProvider(BaseVideoProvider):
 
         # On Windows, .cmd files need cmd.exe to run, but we use
         # create_subprocess_exec to avoid shell injection.
-        use_shell = sys.platform == "win32" and cli_cmd.endswith(".cmd")
+        is_cmd_wrapper = sys.platform == "win32" and cli_cmd.endswith(".cmd")
 
-        if use_shell:
+        if is_cmd_wrapper:
             comspec = os.environ.get("COMSPEC", "cmd.exe")
             args = [
                 comspec, "/c", cli_cmd, "generate", "video", "create", prompt,

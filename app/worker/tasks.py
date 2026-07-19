@@ -1780,9 +1780,10 @@ async def _step_canvas_parse_script(
     input_params expects:
       - script_text (str): the raw script content to parse
       - parse_type (str, optional): "characters" | "scenes" | "all" (default "all")
+      - style (str, optional): art style for character image prompts (e.g., "真人", "3D", "水墨风")
 
     Returns:
-      - characters: list of {name, description, appearanceCount}
+      - characters: list of {name, description, appearanceCount, prompt, stylePrompt}
       - scenes: list of {name, description, appearanceCount}
     """
     if user_id is None:
@@ -1793,32 +1794,69 @@ async def _step_canvas_parse_script(
         return {"characters": [], "scenes": []}
 
     parse_type = input_params.get("parse_type", "all")
+    style = input_params.get("style", "").strip()
+
+    style_instruction = f"风格统一为【{style}】。" if style else ""
+    style_field = f"\n风格:{style}" if style else "\n风格:"
 
     system_prompt = (
-        "You are a professional script analyst. Given a script text, extract the following structured information.\n\n"
+        "You are a professional script analyst and character designer. Given a script text, extract the following structured information.\n\n"
         "1. Characters: For each character appearing in the script, extract:\n"
         "   - name: character name\n"
         "   - description: brief physical/personality description (infer from context)\n"
-        "   - appearanceCount: number of scenes this character appears in\n\n"
+        "   - appearanceCount: number of scenes this character appears in\n"
+        f"   - prompt: generate a detailed character image generation prompt following the template below. {style_instruction}"
+        "   - stylePrompt: the art style value (e.g., '真人', '3D', '水墨风')\n\n"
         "2. Scenes: For each distinct scene/location in the script, extract:\n"
         "   - name: scene name or location description\n"
         "   - description: brief description of the scene setting\n"
         "   - appearanceCount: number of times this scene type appears\n\n"
+        "For each character's 'prompt' field, follow this template exactly, filling in details based on the script:\n"
+        "人物名字：\n"
+        "[人物基础特征]\n"
+        "性别:\n"
+        "年龄:\n"
+        "体型与肤色:\n"
+        f"{style_field}\n"
+        "色彩基调:\n"
+        "[头部细节]\n"
+        "头发:露出颈部和肩膀\n"
+        "脸部:\n"
+        "眉毛:\n"
+        "鼻子:\n"
+        "眼神:\n"
+        "[身体与穿搭]\n"
+        "手部:\n"
+        "腿部:\n"
+        "衣服:要求完全对称，剪裁清晰\n"
+        "裤子:\n"
+        "鞋子:\n"
+        "配饰:无大件遮挡物，小巧贴合\n"
+        "[技术与环境限制]\n"
+        "背景:纯白纯色背景，无纹理、无渐变、无杂物、无任何装饰元素\n"
+        "姿势:绝对标准的A-Pose，双臂自然下垂，呈A字形\n"
+        "比例:哥特式比例，高级时装插画视觉\n"
+        "视角:正前视，平视中心镜头，正交视角，零透视畸变，无广角、无仰俯角度、无镜头变形\n"
+        "表情:面无表情，自然双唇闭合，神态平静淡然，无喜怒哀乐\n"
+        "光照:全局均衡柔和漫射光\n"
+        "构图:完整全身立绘，从头到脚完整呈现，双脚鞋子完整入镜，头顶保留适量留白空间，画面居中对称构图\n"
+        "画质与渲染:4k分辨率，杰作，极致细节，专业角色设计表，清晰的材质纹理\n"
+        "比例：9:16\n\n"
         "Output ONLY valid JSON with this exact structure (no markdown fences, no extra text):\n"
     )
 
     if parse_type == "characters":
-        system_prompt += '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
-        user_prompt = f"Extract all characters from this script:\n\n{script_text}"
+        system_prompt += '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "..."}]}'
+        user_prompt = f"Extract all characters and generate their image prompts from this script:\n\n{script_text}"
     elif parse_type == "scenes":
         system_prompt += '{"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
         user_prompt = f"Extract all scenes/locations from this script:\n\n{script_text}"
     else:
         system_prompt += (
-            '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0}], '
+            '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "..."}], '
             '"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
         )
-        user_prompt = f"Extract all characters and scenes from this script:\n\n{script_text}"
+        user_prompt = f"Extract all characters (with image prompts) and scenes from this script:\n\n{script_text}"
 
     messages = [
         {"role": "system", "content": system_prompt},

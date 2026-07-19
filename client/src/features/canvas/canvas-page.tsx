@@ -69,6 +69,25 @@ export function CanvasPage() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef(false);
 
+  // Load existing canvas from store (persisted canvasId) or create a new one
+  const loadMutation = useMutation({
+    mutationFn: (id: string) => canvasesApi.get(id),
+    onSuccess: ({ data: canvas }) => {
+      useCanvasStore.getState().reset();
+      useCanvasStore.getState().setCanvasId(canvas.id);
+      useCanvasStore.getState().setCanvasTitle(canvas.title);
+      if (canvas.data) {
+        useCanvasStore.getState().loadCanvas(canvas.data);
+      }
+    },
+    onError: () => {
+      // Canvas was deleted or inaccessible, create a new one
+      if (!createMutation.isPending) {
+        createMutation.mutate();
+      }
+    },
+  });
+
   // Create initial canvas on first mount
   const createMutation = useMutation({
     mutationFn: () => canvasesApi.create({ title: 'Untitled Canvas' }),
@@ -93,10 +112,20 @@ export function CanvasPage() {
     },
   });
 
-  // Create a canvas for authenticated users on first mount
+  // Initialize canvas on mount: load existing or create new
   useEffect(() => {
-    if (isAuthenticated && !canvasId && !createMutation.isPending) {
-      createMutation.mutate();
+    if (!isAuthenticated) return;
+
+    if (canvasId) {
+      // Persisted canvasId found — load that canvas
+      if (!loadMutation.isPending) {
+        loadMutation.mutate(canvasId);
+      }
+    } else {
+      // No persisted canvasId — create a new one
+      if (!createMutation.isPending) {
+        createMutation.mutate();
+      }
     }
   }, [isAuthenticated, canvasId]);
 

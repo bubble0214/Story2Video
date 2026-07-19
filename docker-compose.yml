@@ -121,6 +121,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: "http://app:8000/api"
+        NEXT_PUBLIC_CLIENT_API_BASE_URL: "/api"
     ports:
       - "3000:3000"
     env_file:
@@ -128,6 +129,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: "http://app:8000/api"
+      NEXT_PUBLIC_CLIENT_API_BASE_URL: "/api"
     depends_on:
       - app
     restart: unless-stopped

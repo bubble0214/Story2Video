@@ -1889,6 +1889,92 @@ async def _step_canvas_parse_script(
     }
 
 
+async def _step_canvas_generate_scene_prompt(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate a detailed scene image prompt from the full script text.
+
+    input_params expects:
+      - script_text (str): the original script text containing all scenes
+      - scene_name (str): the name / label of the target scene node
+      - scene_description (str): the existing scene description extracted during parse
+      - style (str, optional): art style (e.g. "废土科幻", "现代极简")
+
+    Returns:
+      - prompt (str): the generated scene image prompt following the template
+      - stylePrompt (str): the style value
+      - aspectRatio (str): "21:9"
+    """
+    script_text = input_params.get("script_text", "").strip()
+    scene_name = input_params.get("scene_name", "").strip()
+    scene_description = input_params.get("scene_description", "").strip()
+    style = input_params.get("style", "").strip()
+
+    if not script_text or not scene_name:
+        return {"prompt": "", "stylePrompt": style, "aspectRatio": "21:9"}
+
+    style_instruction = f"\n风格:{style}" if style else "\n风格:"
+
+    system_prompt = (
+        "You are a professional scene and lighting designer. Given a script text and a specific scene name, "
+        "generate a detailed image generation prompt for that scene following the template below exactly.\n\n"
+        "Analyze the scene context from the script and fill in every field of the template based on your analysis. "
+        "Be specific and detailed — describe materials, lighting, colors, and composition.\n\n"
+        "Template:\n"
+        "第N场\n"
+        "[核心设定]"
+        f"{style_instruction}"
+        "\n时间与天气:\n"
+        "色彩基调:\n"
+        "[空间与结构]\n"
+        "空间描述:\n"
+        "材质与细节:\n"
+        "远景/边界:\n"
+        "[光影与镜头]\n"
+        "光源设定:\n"
+        "光影技术:\n"
+        "视角:\n"
+        "构图:\n"
+        "[技术与约束]\n"
+        "画质与渲染:Unreal Engine 5,Octane Render，4k分辨率，杰作，极高细节\n"
+        "附加要求(指令):不要有角色出现在场景里\n"
+        "比例：21:9\n\n"
+        "Output ONLY the filled-in template as plain text (no markdown fences, no extra commentary).\n"
+    )
+
+    user_prompt = (
+        f"Script text:\n{script_text}\n\n"
+        f"Target scene name: {scene_name}\n"
+        f"Scene description (for reference): {scene_description}\n\n"
+        "Generate the scene image prompt following the template above."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    content = await provider.chat(messages)
+
+    prompt = content.strip().strip("`").strip()
+    if not prompt:
+        return {"prompt": "", "stylePrompt": style, "aspectRatio": "21:9"}
+
+    return {
+        "prompt": prompt,
+        "stylePrompt": style,
+        "aspectRatio": "21:9",
+    }
+
+
 # ── Step registry ─────────────────────────────────────────────────────
 
 _STEP_REGISTRY = {
@@ -1913,6 +1999,7 @@ _STEP_REGISTRY = {
     "generate_image": _step_generate_image,
     "canvas_generate_image": _step_canvas_generate_image,
     "canvas_parse_script": _step_canvas_parse_script,
+    "canvas_generate_scene_prompt": _step_canvas_generate_scene_prompt,
     "generate_video": _step_generate_video,
     "generate_mv": _step_generate_mv,
     "generate_mv_storyboard": _step_generate_mv_storyboard,
@@ -1940,6 +2027,7 @@ _STEP_WEIGHTS = {
     "generate_image": 5.0,
     "canvas_generate_image": 5.0,
     "canvas_parse_script": 10.0,
+    "canvas_generate_scene_prompt": 10.0,
     "generate_video": 5.0,
     "generate_mv": 15.0,
     "generate_mv_storyboard": 10.0,
@@ -1971,6 +2059,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_image": ["generate_song", "generate_image"],
     "canvas_generate_image": ["canvas_generate_image"],
     "canvas_parse_script": ["canvas_parse_script"],
+    "canvas_generate_scene_prompt": ["canvas_generate_scene_prompt"],
     "generate_video": [
         "search_reference_novels",
         "generate_novel",
@@ -2009,6 +2098,7 @@ _STEP_LABELS: dict[str, str] = {
     "generate_image": "生成图片",
     "canvas_generate_image": "画布图片生成",
     "canvas_parse_script": "剧本解析中",
+    "canvas_generate_scene_prompt": "场景提示词生成中",
     "generate_video": "生成视频",
     "generate_mv": "生成音乐视频",
     "generate_mv_storyboard": "生成MV分镜脚本",
@@ -2337,6 +2427,18 @@ def workflow_generate_scene_diagnosis(task_id: str, user_id: str, input_params: 
 def workflow_canvas_parse_script(task_id: str, user_id: str, input_params: dict) -> dict:
     """Single-step workflow: parse script text to extract characters and scenes."""
     steps = _WORKFLOWS["canvas_parse_script"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_canvas_generate_scene_prompt",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_canvas_generate_scene_prompt(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Single-step workflow: generate scene image prompt from script text."""
+    steps = _WORKFLOWS["canvas_generate_scene_prompt"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

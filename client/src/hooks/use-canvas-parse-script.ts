@@ -189,6 +189,12 @@ export function useCanvasParseScript() {
 
       toast({ title: `解析完成，已添加 ${count} 个节点` });
       setActiveTaskId(null);
+
+      // Save script text for later scene prompt regeneration
+      if (opts.scriptText) {
+        useCanvasStore.getState().setScriptText(opts.scriptText);
+      }
+
       optsRef.current = null;
 
       // Start image generation for characters that have prompts

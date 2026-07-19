@@ -44,7 +44,8 @@ interface CanvasStore {
   // Tool panel state
   activeToolPanel: 'light' | 'camera' | 'threeView' | 'panoramic' | 'characterConfig' | null;
 
-  // Actions — canvas metadata
+  // Stored script text for scene prompt regeneration
+  scriptText: string;
   setCanvasId: (id: string | null) => void;
   setCanvasTitle: (title: string) => void;
   setDirty: (dirty: boolean) => void;
@@ -52,8 +53,7 @@ interface CanvasStore {
   setSelectedNodeId: (id: string | null) => void;
   setSelectedNodeIds: (ids: string[]) => void;
   toggleConnectMode: () => void;
-
-  // Canvas controls
+  setScriptText: (text: string) => void;
   setActiveAssetTab: (tab: AssetCategory | 'canvas') => void;
   toggleGridSnap: () => void;
   toggleAssetOnly: () => void;
@@ -109,6 +109,7 @@ export const useCanvasStore = create<CanvasStore>()(
       gridSnap: true,
       viewport: { x: 0, y: 0, zoom: 1 },
       activeToolPanel: null,
+      scriptText: '',
 
       setCanvasId: (id) => set({ canvasId: id }),
       setCanvasTitle: (title) => set({ canvasTitle: title, isDirty: true }),
@@ -117,8 +118,7 @@ export const useCanvasStore = create<CanvasStore>()(
       setSelectedNodeId: (id) => set({ selectedNodeId: id }),
       setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
       toggleConnectMode: () => set((s) => ({ connectMode: !s.connectMode })),
-
-      setActiveAssetTab: (tab) => set({ activeAssetTab: tab }),
+      setScriptText: (text) => set({ scriptText: text }),
       toggleGridSnap: () => set((s) => ({ gridSnap: !s.gridSnap })),
       toggleAssetOnly: () => set((s) => ({ showAssetOnly: !s.showAssetOnly })),
       setViewport: (viewport) => set({ viewport }),
@@ -333,6 +333,7 @@ export const useCanvasStore = create<CanvasStore>()(
           gridSnap: true,
           viewport: { x: 0, y: 0, zoom: 1 },
           activeToolPanel: null,
+          scriptText: '',
         }),
 
       batchGenerate: (nodeIds) => {

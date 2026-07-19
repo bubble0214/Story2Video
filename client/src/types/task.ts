@@ -19,6 +19,7 @@ export type WorkflowType =
   | 'generate_image'
   | 'canvas_generate_image'
   | 'canvas_parse_script'
+  | 'canvas_generate_scene_prompt'
   | 'generate_video'
   | 'generate_mv'
   | 'generate_mv_storyboard';

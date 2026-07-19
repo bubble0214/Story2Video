@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Trash2, Link2, Unlink, User, Mountain, Image, Video, Music, FileText, StickyNote, X, Sparkles, Mic, Upload, Volume2 } from 'lucide-react';
 import { useCanvasGenerate } from '@/hooks/use-canvas-generate';
+import { useCanvasScenePrompt } from '@/hooks/use-canvas-scene-prompt';
 
 import type { TextBlockData, NoteCardData, ImageBlockData, CharacterData, SceneData, AudioBlockData, AspectRatio, Resolution } from '@/types/canvas';
 
@@ -232,7 +233,7 @@ function InlinedPromptEditor({data,onUpdate,onGenerate}:{data:CharacterData;onUp
   </div>);
 }
 
-function InlinedSceneEditor({data,onUpdate,onGenerate}:{data:SceneData;onUpdate:(p:Partial<SceneData>)=>void;onGenerate?:()=>void}) {
+function InlinedSceneEditor({data,onUpdate,onGenerate,onParseFromScript,hasScriptText,isGeneratingScenePrompt}:{data:SceneData;onUpdate:(p:Partial<SceneData>)=>void;onGenerate?:()=>void;onParseFromScript?:()=>void;hasScriptText?:boolean;isGeneratingScenePrompt?:boolean}) {
   const [presets,setPresets]=useState<Preset[]>(loadP);
   const [ps,setPs]=useState(''); const [pn,setPn]=useState(''); const [pp,setPp]=useState('');
   const [showStyle,setShowStyle]=useState(false);
@@ -327,6 +328,11 @@ function InlinedSceneEditor({data,onUpdate,onGenerate}:{data:SceneData;onUpdate:
       </Select>
       <Button variant="outline" size="sm" className="h-7 w-7 p-0" title="画面比例/清晰度" onClick={()=>setShowRatio(true)}><ScanLine className="w-3.5 h-3.5" /></Button>
       <Button variant="outline" size="sm" className="h-7 w-7 p-0" title="提示词预设" onClick={()=>setShowPreset(true)}><FileJson className="w-3.5 h-3.5" /></Button>
+      {onParseFromScript && (
+        <Button variant="secondary" size="sm" className="h-7 px-2 text-xs gap-1" onClick={onParseFromScript} disabled={!hasScriptText || isGeneratingScenePrompt} title={!hasScriptText ? '请先在资产列表解析剧本' : ''}>
+          <FileText className="w-3.5 h-3.5" />从剧本解析
+        </Button>
+      )}
     </div>
 
     <SimpleModal open={showStyle} onClose={()=>setShowStyle(false)} title="风格提示词">
@@ -530,6 +536,7 @@ export function NodePanel() {
   const [audioStyle, setAudioStyle] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasGenerate = useCanvasGenerate();
+  const scenePrompt = useCanvasScenePrompt();
 
   const { data: assetTasks } = useQuery({
     queryKey: ['asset-tasks-panel'],
@@ -575,6 +582,21 @@ export function NodePanel() {
       referenceImages: (nodeData as CharacterData).referenceImages,
     });
   }, [selectedNodeId, canvasGenerate.generate]);
+
+  const handleParseFromScript = useCallback(() => {
+    if (!selectedNodeId) return;
+    const store = useCanvasStore.getState();
+    const scriptText = store.scriptText;
+    const node = store.nodes.find((n) => n.id === selectedNodeId);
+    if (!scriptText || !node) return;
+    const sceneData = node.data as SceneData;
+    scenePrompt.generatePrompt(selectedNodeId, {
+      scriptText,
+      sceneName: sceneData.sceneName ?? '',
+      sceneDescription: sceneData.description ?? '',
+      style: sceneData.stylePrompt ?? '',
+    });
+  }, [selectedNodeId, scenePrompt.generatePrompt]);
 
   const handleAssetSelect = (url: string) => {
     if (!selectedNodeId) return;
@@ -671,6 +693,9 @@ export function NodePanel() {
             data={data as SceneData}
             onUpdate={(patch) => updateNodeData(node.id, patch as Partial<SceneData>)}
             onGenerate={handleGenerate}
+            onParseFromScript={handleParseFromScript}
+            hasScriptText={!!useCanvasStore.getState().scriptText}
+            isGeneratingScenePrompt={scenePrompt.isGenerating}
           />
         )}
 

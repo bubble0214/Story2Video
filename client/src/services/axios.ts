@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const API_BASE_URL =
+  typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_CLIENT_API_BASE_URL || 'http://103.233.253.246:8005/api')
+    : (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://app:8000/api');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

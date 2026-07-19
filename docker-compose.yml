@@ -119,6 +119,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "http://app:8000/api"
     ports:
       - "3000:3000"
     env_file:

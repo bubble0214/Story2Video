@@ -24,7 +24,7 @@ export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
           <img
             src={imageUrl}
             alt={data.sceneName ?? data.label}
-            className="w-full h-full object-cover rounded-t-lg"
+            className="w-full h-full object-contain rounded-t-lg"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">

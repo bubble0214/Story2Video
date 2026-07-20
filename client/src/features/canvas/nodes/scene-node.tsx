@@ -19,12 +19,12 @@ export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
       <Handle type="target" position={Position.Top} className="!bg-border" />
 
       {/* Image */}
-      <div className="aspect-video bg-muted flex items-center justify-center relative">
+      <div className="bg-muted flex items-center justify-center relative min-h-[140px]">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={data.sceneName ?? data.label}
-            className="w-full h-full object-contain rounded-t-lg"
+            className="w-full h-auto object-contain rounded-t-lg"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">

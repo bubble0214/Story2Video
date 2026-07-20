@@ -19,12 +19,12 @@ export function CharacterNode({ data, selected }: NodeProps<CharacterNode>) {
       <Handle type="target" position={Position.Top} className="!bg-border" />
 
       {/* Image */}
-      <div className="aspect-square bg-muted flex items-center justify-center relative">
+      <div className="bg-muted flex items-center justify-center relative min-h-[200px]">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={data.characterName ?? data.label}
-            className="w-full h-full object-contain rounded-t-lg"
+            className="w-full h-auto object-contain rounded-t-lg"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">

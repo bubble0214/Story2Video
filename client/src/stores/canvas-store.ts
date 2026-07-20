@@ -119,7 +119,7 @@ export const useCanvasStore = create<CanvasStore>()(
       setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
       toggleConnectMode: () => set((s) => ({ connectMode: !s.connectMode })),
       setScriptText: (text) => set({ scriptText: text }),
-      toggleGridSnap: () => set((s) => ({ gridSnap: !s.gridSnap })),
+      setActiveAssetTab: (tab) => set({ activeAssetTab: tab }),
       toggleAssetOnly: () => set((s) => ({ showAssetOnly: !s.showAssetOnly })),
       setViewport: (viewport) => set({ viewport }),
       resetViewport: () => set({ viewport: { x: 0, y: 0, zoom: 1 } }),

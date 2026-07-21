@@ -1724,7 +1724,7 @@ async def _step_canvas_generate_image(
             "message": "Local proxy failed, using direct Pollinations URL",
         }
 
-    local_path = f"/api/uploads/scenes/{filename}"
+    local_path = f"/uploads/scenes/{filename}"
     return {
         "image_url": local_path,
         "image_placeholder": False,

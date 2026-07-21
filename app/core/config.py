@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     avatar_provider: str = "heygen"
     avatar_api_key: str = ""
 
+    # Uploads (local directory for proxied images, etc.)
+    upload_dir: str = "/app/uploads"
+
     @model_validator(mode="after")
     def _reject_weak_defaults(self) -> "Settings":
         for field, val in [

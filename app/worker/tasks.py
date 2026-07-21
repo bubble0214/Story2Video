@@ -4,7 +4,9 @@ import asyncio
 import json
 import re
 import sys
+import uuid
 import logging
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -1666,8 +1668,10 @@ _RES_MAP: dict[str, int] = {
 async def _step_canvas_generate_image(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
-    """Generate an image for a canvas node via Pollinations.ai (free, no key needed)."""
+    """Generate an image for a canvas node via Pollinations.ai, saved locally to avoid GFW block."""
     from urllib.parse import quote
+    import httpx
+    from app.core.config import settings
 
     prompt = input_params.get("prompt", "")
     style_prompt = input_params.get("stylePrompt", "")
@@ -1697,10 +1701,34 @@ async def _step_canvas_generate_image(
 
     logger.info("Canvas generate image: %s -> %s (%dx%d)", full_prompt[:80], image_url, width, height)
 
+    # Download from Pollinations (server-to-server, bypasses GFW) and save locally
+    scenes_dir = Path(settings.upload_dir) / "scenes"
+    scenes_dir.mkdir(parents=True, exist_ok=True)
+
+    unique_id = uuid.uuid4().hex[:12]
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in prompt[:40])
+    filename = f"{unique_id}_{safe_name}.jpg"
+    filepath = scenes_dir / filename
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(image_url)
+            resp.raise_for_status()
+            filepath.write_bytes(resp.content)
+        logger.info("Saved scene image locally: %s (%d bytes)", filepath, len(resp.content))
+    except Exception as exc:
+        logger.error("Failed to download image from Pollinations: %s", exc)
+        return {
+            "image_url": image_url,
+            "image_placeholder": False,
+            "message": "Local proxy failed, using direct Pollinations URL",
+        }
+
+    local_path = f"/api/uploads/scenes/{filename}"
     return {
-        "image_url": image_url,
+        "image_url": local_path,
         "image_placeholder": False,
-        "message": "Image generated via Pollinations.ai",
+        "message": "Image generated and proxied via local server",
     }
 
 

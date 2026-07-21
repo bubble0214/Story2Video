@@ -13,7 +13,9 @@ from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — ensure upload subdirectories exist
+    for subdir in ("scenes",):
+        (uploads_path / subdir).mkdir(parents=True, exist_ok=True)
     yield
     # Shutdown
 

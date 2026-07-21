@@ -359,10 +359,11 @@ export const useCanvasStore = create<CanvasStore>()(
     }),
     {
       name: 'canvas-storage',
-      version: 1,
+      version: 0,
       partialize: (state) => ({
         canvasId: state.canvasId,
         canvasTitle: state.canvasTitle,
+        scriptText: state.scriptText,
       }),
     },
   ),

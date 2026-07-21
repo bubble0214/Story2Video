@@ -39,7 +39,6 @@ export function CanvasPage() {
 
   useEffect(() => {
     // zustand persist may not have hydrated on first render
-    // Check if we have a stored token to determine if we should show canvas
     const stored = localStorage.getItem('auth-storage');
     if (stored) {
       try {
@@ -73,9 +72,13 @@ export function CanvasPage() {
   const loadMutation = useMutation({
     mutationFn: (id: string) => canvasesApi.get(id),
     onSuccess: ({ data: canvas }) => {
+      const prevScriptText = useCanvasStore.getState().scriptText;
       useCanvasStore.getState().reset();
       useCanvasStore.getState().setCanvasId(canvas.id);
       useCanvasStore.getState().setCanvasTitle(canvas.title);
+      if (prevScriptText) {
+        useCanvasStore.getState().setScriptText(prevScriptText);
+      }
       if (canvas.data) {
         useCanvasStore.getState().loadCanvas(canvas.data);
       }

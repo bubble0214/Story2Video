@@ -530,6 +530,7 @@ function InlinedImageEditor({data,onUpdate,onGenerate}:{data:ImageBlockData;onUp
 
 export function NodePanel() {
   const { selectedNodeId, nodes, updateNodeData, removeSelectedNode } = useCanvasStore();
+  const scriptText = useCanvasStore((s) => s.scriptText);
   const [linkTaskId, setLinkTaskId] = useState('');
   const [showImgAsset, setShowImgAsset] = useState(false);
   const [showAudioStyle, setShowAudioStyle] = useState(false);
@@ -586,17 +587,23 @@ export function NodePanel() {
   const handleParseFromScript = useCallback(() => {
     if (!selectedNodeId) return;
     const store = useCanvasStore.getState();
-    const scriptText = store.scriptText;
+    let st = scriptText;
+    if (!st) {
+      try {
+        const s = JSON.parse(localStorage.getItem('canvas-storage') || '{}');
+        st = s.state?.scriptText || '';
+      } catch {}
+    }
     const node = store.nodes.find((n) => n.id === selectedNodeId);
-    if (!scriptText || !node) return;
+    if (!st || !node) return;
     const sceneData = node.data as SceneData;
     scenePrompt.generatePrompt(selectedNodeId, {
-      scriptText,
+      scriptText: st,
       sceneName: sceneData.sceneName ?? '',
       sceneDescription: sceneData.description ?? '',
       style: sceneData.stylePrompt ?? '',
     });
-  }, [selectedNodeId, scenePrompt.generatePrompt]);
+  }, [selectedNodeId, scenePrompt.generatePrompt, scriptText]);
 
   const handleAssetSelect = (url: string) => {
     if (!selectedNodeId) return;
@@ -694,7 +701,7 @@ export function NodePanel() {
             onUpdate={(patch) => updateNodeData(node.id, patch as Partial<SceneData>)}
             onGenerate={handleGenerate}
             onParseFromScript={handleParseFromScript}
-            hasScriptText={!!useCanvasStore.getState().scriptText}
+            hasScriptText={scriptText ? true : false}
             isGeneratingScenePrompt={scenePrompt.isGenerating}
           />
         )}

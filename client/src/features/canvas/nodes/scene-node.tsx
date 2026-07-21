@@ -2,12 +2,17 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import type { SceneData } from '@/types/canvas';
 import { Mountain, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 
 type SceneNode = Node<SceneData>;
 
 export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
   if (!data) return null;
   const imageUrl = data.image || data.imageUrl;
+  const [imgError, setImgError] = useState(false);
+
+  const showImage = !!imageUrl && !imgError;
+  const showPlaceholder = !imageUrl || imgError;
 
   return (
     <div
@@ -19,17 +24,19 @@ export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
       <Handle type="target" position={Position.Top} className="!bg-border" />
 
       {/* Image */}
-      <div className="bg-muted flex items-center justify-center relative min-h-[140px]">
-        {imageUrl ? (
+      <div className="bg-muted flex items-center justify-center relative min-h-[120px] aspect-video">
+        {showImage && (
           <img
             src={imageUrl}
             alt={data.sceneName ?? data.label}
-            className="w-full h-auto object-contain rounded-t-lg"
+            className="w-full h-full object-cover rounded-t-lg"
+            onError={() => setImgError(true)}
           />
-        ) : (
+        )}
+        {showPlaceholder && (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Mountain className="h-8 w-8 opacity-30" />
-            <span className="text-xs">待生成</span>
+            <span className="text-xs">{imgError ? '图片加载失败' : '待生成'}</span>
           </div>
         )}
       </div>

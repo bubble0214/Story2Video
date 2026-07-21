@@ -24,7 +24,7 @@ export function CharacterNode({ data, selected }: NodeProps<CharacterNode>) {
           <img
             src={imageUrl}
             alt={data.characterName ?? data.label}
-            className="w-full h-auto object-contain rounded-t-lg"
+            className="w-full h-full object-cover rounded-t-lg"
           />
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">

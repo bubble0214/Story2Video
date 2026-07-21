@@ -80,6 +80,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - .:/app
+      - uploads_data:/data/uploads
     command: >
       sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
     restart: unless-stopped
@@ -109,6 +110,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - .:/app
+      - uploads_data:/data/uploads
     command: >
       sh -c "celery -A app.core.celery:celery_app worker
              --loglevel=info
@@ -137,3 +139,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     avatar_api_key: str = ""
 
     # Uploads (local directory for proxied images, etc.)
-    upload_dir: str = "/app/uploads"
+    upload_dir: str = "/data/uploads"
 
     @model_validator(mode="after")
     def _reject_weak_defaults(self) -> "Settings":

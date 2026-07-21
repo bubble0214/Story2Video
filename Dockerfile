@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
 COPY . .
 
 RUN useradd --create-home --shell /bin/bash appuser && \
-    mkdir -p /app/uploads/scenes && \
     chown -R appuser:appuser /app
 
 USER appuser

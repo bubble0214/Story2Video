@@ -39,5 +39,8 @@ app.include_router(v1_router, prefix="/api")
 
 # Mount static file serving for proxied images (scene images, etc.)
 uploads_path = Path(settings.upload_dir)
-uploads_path.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+try:
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).warning("Failed to mount /uploads static dir: %s", e)

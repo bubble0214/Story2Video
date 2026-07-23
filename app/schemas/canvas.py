@@ -35,3 +35,5 @@ class CanvasListItem(BaseModel):
     id: UUID
     title: str
     updated_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -1,13 +1,29 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import type { CharacterData } from '@/types/canvas';
-import { User, Loader2 } from 'lucide-react';
+import { User, RefreshCw } from 'lucide-react';
+import { useCanvasGenerate } from '@/hooks/use-canvas-generate';
 
 type CharacterNode = Node<CharacterData>;
 
-export function CharacterNode({ data, selected }: NodeProps<CharacterNode>) {
+export function CharacterNode({ data, selected, id }: NodeProps<CharacterNode>) {
   if (!data) return null;
   const imageUrl = data.image || data.imageUrl;
+  const { generate, isGenerating } = useCanvasGenerate();
+
+  const handleRegenerate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    generate({
+      nodeId: id,
+      nodeType: 'character',
+      prompt: data.prompt ?? data.characterName ?? '',
+      stylePrompt: data.stylePrompt,
+      model: data.model,
+      resolution: data.resolution,
+      aspectRatio: data.aspectRatio ?? '9:16',
+      referenceImages: data.referenceImages,
+    });
+  };
 
   return (
     <div
@@ -21,11 +37,22 @@ export function CharacterNode({ data, selected }: NodeProps<CharacterNode>) {
       {/* Image */}
       <div className="bg-muted flex items-center justify-center relative min-h-[200px] aspect-[9/16]">
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={data.characterName ?? data.label}
-            className="w-full h-full object-cover rounded-t-lg"
-          />
+          <>
+            <img
+              src={imageUrl}
+              alt={data.characterName ?? data.label}
+              className="w-full h-full object-cover rounded-t-lg"
+            />
+            {/* Regenerate overlay button */}
+            <button
+              onClick={handleRegenerate}
+              disabled={isGenerating}
+              className="absolute top-2 right-2 bg-background/80 hover:bg-background rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              title="重新生成图片"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            </button>
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <User className="h-8 w-8 opacity-30" />

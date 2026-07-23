@@ -1834,7 +1834,8 @@ async def _step_canvas_parse_script(
         "   - description: brief physical/personality description (infer from context)\n"
         "   - appearanceCount: number of scenes this character appears in\n"
         f"   - prompt: generate a detailed character image generation prompt following the template below. {style_instruction}"
-        "   - stylePrompt: the art style value (e.g., '真人', '3D', '水墨风')\n\n"
+        "   - stylePrompt: the art style value (e.g., '真人', '3D', '水墨风')\n"
+        "   - voiceDescription: infer the character's voice type/tone based on their age, gender and personality (e.g., '低沉磁性', '清亮少女', '温和儒雅', '高冷御姐', '活泼正太'). Write in Chinese.\n\n"
         "2. Scenes: For each distinct scene/location in the script, extract:\n"
         "   - name: scene name or location description\n"
         "   - description: brief description of the scene setting\n"
@@ -1874,14 +1875,14 @@ async def _step_canvas_parse_script(
     )
 
     if parse_type == "characters":
-        system_prompt += '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "..."}]}'
+        system_prompt += '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "...", "voiceDescription": "..."}]}'
         user_prompt = f"Extract all characters and generate their image prompts from this script:\n\n{script_text}"
     elif parse_type == "scenes":
         system_prompt += '{"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
         user_prompt = f"Extract all scenes/locations from this script:\n\n{script_text}"
     else:
         system_prompt += (
-            '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "..."}], '
+            '{"characters": [{"name": "...", "description": "...", "appearanceCount": 0, "prompt": "...", "stylePrompt": "...", "voiceDescription": "..."}], '
             '"scenes": [{"name": "...", "description": "...", "appearanceCount": 0}]}'
         )
         user_prompt = f"Extract all characters (with image prompts) and scenes from this script:\n\n{script_text}"

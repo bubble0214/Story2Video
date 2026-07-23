@@ -19,6 +19,7 @@ export interface ParsedCharacter {
   appearanceCount: number;
   prompt?: string;
   stylePrompt?: string;
+  voiceDescription?: string;
 }
 
 export interface ParsedScene {
@@ -247,7 +248,7 @@ export function useCanvasParseScript() {
       const opts = optsRef.current;
       const { addNode } = useCanvasStore.getState();
       let count = 0;
-      const createdCharacterInfos: { name: string; prompt: string; stylePrompt: string }[] = [];
+      const createdCharacterInfos: { name: string; prompt: string; stylePrompt: string; voiceDescription?: string }[] = [];
 
       if (characters && characters.length > 0) {
         for (const ch of characters) {
@@ -258,11 +259,13 @@ export function useCanvasParseScript() {
             appearanceCount: ch.appearanceCount,
             prompt: ch.prompt ?? '',
             stylePrompt: ch.stylePrompt ?? '',
+            voiceDescription: ch.voiceDescription ?? '',
           });
           createdCharacterInfos.push({
             name: ch.name,
             prompt: ch.prompt ?? '',
             stylePrompt: ch.stylePrompt ?? '',
+            voiceDescription: ch.voiceDescription,
           });
           count++;
         }

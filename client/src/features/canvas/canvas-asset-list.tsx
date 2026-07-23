@@ -217,7 +217,8 @@ export function AssetList({ category }: AssetListProps) {
       const text = ev.target?.result as string;
       if (text) setScriptText(text);
     };
-    reader.readAsText(file);
+    // Read as GBK to handle Chinese Windows text files; fallback to UTF-8
+    reader.readAsText(file, 'GBK');
     // Reset input so re-selecting the same file triggers onChange
     e.target.value = '';
   };

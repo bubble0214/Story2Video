@@ -35,7 +35,7 @@ export function CharacterNode({ data, selected, id }: NodeProps<CharacterNode>) 
       <Handle type="target" position={Position.Top} className="!bg-border" />
 
       {/* Image */}
-      <div className="bg-muted flex items-center justify-center relative min-h-[200px] aspect-[9/16]">
+      <div className="bg-muted flex items-center justify-center relative min-h-[200px] aspect-[9/16] group">
         {imageUrl ? (
           <>
             <img

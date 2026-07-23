@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { canvasesApi } from '@/services/canvases';
 import { useCanvasStore } from '@/stores/canvas-store';
@@ -75,9 +75,6 @@ export function CanvasPage() {
     setActiveAssetTab,
   } = useCanvasStore();
 
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSave = useRef(false);
-
   // Save name dialog
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [pendingName, setPendingName] = useState('');
@@ -119,9 +116,6 @@ export function CanvasPage() {
     onSuccess: () => {
       setDirty(false);
       setSaving(false);
-      if (pendingSave.current) {
-        pendingSave.current = false;
-      }
     },
     onError: () => {
       setSaving(false);
@@ -176,25 +170,6 @@ export function CanvasPage() {
     setSaving(true);
     saveMutation.mutate({ id, data: store.getCanvasData(), title: name });
   };
-
-  // Auto-save debounce
-  useEffect(() => {
-    if (!isDirty || !canvasId) return;
-
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-
-    autoSaveTimer.current = setTimeout(() => {
-      doSave();
-    }, 5000);
-
-    return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
-    };
-  }, [isDirty, nodes, canvasTitle, canvasId]);
 
   // Manual save: watch manualSaveSignal from toolbar
   const manualSaveSignal = useCanvasStore((s) => s.manualSaveSignal);

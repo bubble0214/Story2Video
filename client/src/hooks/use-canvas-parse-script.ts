@@ -34,6 +34,41 @@ interface ImageGenQueueItem {
   nodeType: 'character' | 'scene' | 'imageBlock';
 }
 
+interface SceneGenItem {
+  nodeId: string;
+  sceneName: string;
+  description: string;
+  scriptText: string;
+  style: string;
+}
+
+/** Poll a task until SUCCESS or FAILED */
+function pollTask(taskId: string, maxAttempts = 30, interval = 2000): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const iv = setInterval(async () => {
+      attempts++;
+      try {
+        const resp = await tasksApi.get(taskId);
+        const task = resp.data;
+        if (task.status === 'SUCCESS') {
+          clearInterval(iv);
+          resolve(task.result);
+        } else if (task.status === 'FAILED') {
+          clearInterval(iv);
+          reject(new Error(task.error_message || 'Task failed'));
+        }
+      } catch {
+        // ignore network errors, keep polling
+      }
+      if (attempts >= maxAttempts) {
+        clearInterval(iv);
+        reject(new Error('Polling timeout'));
+      }
+    }, interval);
+  });
+}
+
 export function useCanvasParseScript() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const optsRef = useRef<ParseScriptOptions | null>(null);
@@ -104,6 +139,64 @@ export function useCanvasParseScript() {
       imageGenRef.current = { queue, index: idx + 1 };
       processNextImage();
     });
+  }, []);
+
+  // Process scene queue: scene prompt -> image generation, sequentially
+  const processSceneQueue = useCallback(async (sceneQueue: SceneGenItem[]) => {
+    const total = sceneQueue.length;
+    for (let i = 0; i < total; i++) {
+      const item = sceneQueue[i];
+      setGenerationProgress({ completed: i, total });
+      try {
+        // Step 1: generate scene prompt via LLM
+        const promptResp = await tasksApi.create({
+          workflow_type: 'canvas_generate_scene_prompt',
+          input_params: {
+            script_text: item.scriptText,
+            scene_name: item.sceneName,
+            scene_description: item.description,
+            style: item.style,
+          },
+        });
+        const promptResult = await pollTask(promptResp.data.id);
+        const prompt = (promptResult as any)?.prompt ?? '';
+        const stylePrompt = (promptResult as any)?.stylePrompt ?? item.style;
+        if (!prompt) {
+          toast({ title: `场景「${item.sceneName}」提示词生成失败`, variant: 'destructive' });
+          continue;
+        }
+        // Update node with prompt data
+        const store = useCanvasStore.getState();
+        store.updateNodeData(item.nodeId, { prompt, stylePrompt, aspectRatio: '21:9' } as any);
+
+        // Step 2: generate image from prompt
+        const imgResp = await tasksApi.create({
+          workflow_type: 'canvas_generate_image',
+          input_params: {
+            prompt,
+            stylePrompt,
+            model: '',
+            resolution: '2K',
+            aspectRatio: '21:9',
+            referenceImages: [],
+            nodeType: 'scene',
+          },
+        });
+        const imgResult = await pollTask(imgResp.data.id);
+        const imageUrl = (imgResult as any)?.image_url ?? '';
+        if (imageUrl) {
+          store.applyImageToScene(item.nodeId, imageUrl);
+        }
+        toast({ title: `场景「${item.sceneName}」图片生成完成` });
+      } catch (err: any) {
+        toast({
+          title: `场景「${item.sceneName}」生成失败`,
+          description: err?.message ?? '未知错误',
+          variant: 'destructive',
+        });
+      }
+    }
+    setGenerationProgress(null);
   }, []);
 
   // Handle image task completion
@@ -199,16 +292,15 @@ export function useCanvasParseScript() {
 
       // Start image generation for characters that have prompts
       const nodesAfterParse = useCanvasStore.getState().nodes;
-      const queue: ImageGenQueueItem[] = [];
+      const charQueue: ImageGenQueueItem[] = [];
 
       for (const info of createdCharacterInfos) {
         if (!info.prompt) continue;
-        // Find the actual node ID from the store by matching characterName
         const node = nodesAfterParse.find(n =>
           (n.data as Record<string, unknown>).characterName === info.name
         );
         if (node) {
-          queue.push({
+          charQueue.push({
             nodeId: node.id,
             prompt: info.prompt,
             stylePrompt: info.stylePrompt || (opts?.style ?? ''),
@@ -217,11 +309,38 @@ export function useCanvasParseScript() {
         }
       }
 
-      if (queue.length > 0) {
-        imageGenRef.current = { queue, index: 0 };
-        setGenerationProgress({ completed: 0, total: queue.length });
-        // Start processing
+      // Build scene queue
+      const sceneQueue: SceneGenItem[] = [];
+      if (scenes && scenes.length > 0 && opts.scriptText) {
+        for (const sc of scenes) {
+          const node = nodesAfterParse.find(n =>
+            (n.data as Record<string, unknown>).sceneName === sc.name
+          );
+          if (node) {
+            sceneQueue.push({
+              nodeId: node.id,
+              sceneName: sc.name,
+              description: sc.description,
+              scriptText: opts.scriptText,
+              style: opts.style ?? '',
+            });
+          }
+        }
+      }
+
+      const startedImages = charQueue.length > 0;
+      const startedScenes = sceneQueue.length > 0;
+
+      // Start character image queue
+      if (charQueue.length > 0) {
+        imageGenRef.current = { queue: charQueue, index: 0 };
+        setGenerationProgress({ completed: 0, total: charQueue.length });
         setTimeout(processNextImage, 1000);
+      }
+
+      // Start scene prompt+image queue (async, fire-and-forget)
+      if (sceneQueue.length > 0) {
+        processSceneQueue(sceneQueue);
       }
     }
 

@@ -1,15 +1,31 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import type { SceneData } from '@/types/canvas';
-import { Mountain, Loader2 } from 'lucide-react';
+import { Mountain, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { useCanvasGenerate } from '@/hooks/use-canvas-generate';
 
 type SceneNode = Node<SceneData>;
 
-export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
+export function SceneNode({ data, selected, id }: NodeProps<SceneNode>) {
   if (!data) return null;
   const imageUrl = data.image || data.imageUrl;
   const [imgError, setImgError] = useState(false);
+  const { generate, isGenerating } = useCanvasGenerate();
+
+  const handleRegenerate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    generate({
+      nodeId: id,
+      nodeType: 'scene',
+      prompt: data.prompt ?? data.sceneName ?? '',
+      stylePrompt: data.stylePrompt,
+      model: data.model,
+      resolution: data.resolution,
+      aspectRatio: data.aspectRatio ?? '21:9',
+      referenceImages: data.referenceImages,
+    });
+  };
 
   const showImage = !!imageUrl && !imgError;
   const showPlaceholder = !imageUrl || imgError;
@@ -24,14 +40,25 @@ export function SceneNode({ data, selected }: NodeProps<SceneNode>) {
       <Handle type="target" position={Position.Top} className="!bg-border" />
 
       {/* Image */}
-      <div className="bg-muted flex items-center justify-center relative min-h-[120px] aspect-video">
+      <div className="bg-muted flex items-center justify-center relative min-h-[120px] aspect-video group">
         {showImage && (
-          <img
-            src={imageUrl}
-            alt={data.sceneName ?? data.label}
-            className="w-full h-full object-cover rounded-t-lg"
-            onError={() => setImgError(true)}
-          />
+          <>
+            <img
+              src={imageUrl}
+              alt={data.sceneName ?? data.label}
+              className="w-full h-full object-cover rounded-t-lg"
+              onError={() => setImgError(true)}
+            />
+            {/* Regenerate overlay button */}
+            <button
+              onClick={handleRegenerate}
+              disabled={isGenerating}
+              className="absolute top-2 right-2 bg-background/80 hover:bg-background rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              title="重新生成图片"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            </button>
+          </>
         )}
         {showPlaceholder && (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">

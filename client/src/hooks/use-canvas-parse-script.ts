@@ -38,11 +38,13 @@ export function useCanvasParseScript() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const optsRef = useRef<ParseScriptOptions | null>(null);
 
-  // Image generation queue state
-  const [imageGenQueue, setImageGenQueue] = useState<ImageGenQueueItem[]>([]);
+  // Image generation queue state (ref to avoid stale closures in setTimeout callbacks)
+  const imageGenRef = useRef<{ queue: ImageGenQueueItem[]; index: number }>({ queue: [], index: 0 });
   const [currentImageTaskId, setCurrentImageTaskId] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState<{ completed: number; total: number } | null>(null);
-  const queueIndexRef = useRef(0);
+
+  const taskQuery = useTaskPoll(activeTaskId ?? '', !!activeTaskId);
+  const imageTaskQuery = useTaskPoll(currentImageTaskId ?? '', !!currentImageTaskId);
 
   const taskQuery = useTaskPoll(activeTaskId ?? '', !!activeTaskId);
   const imageTaskQuery = useTaskPoll(currentImageTaskId ?? '', !!currentImageTaskId);
@@ -70,14 +72,14 @@ export function useCanvasParseScript() {
   // Process next image in queue
   const processNextImage = useCallback(() => {
     const store = useCanvasStore.getState();
-    const queue = imageGenQueue;
-    const idx = queueIndexRef.current;
+    const gen = imageGenRef.current;
+    const queue = gen.queue;
+    const idx = gen.index;
 
     if (idx >= queue.length) {
       // All done
       setCurrentImageTaskId(null);
-      setImageGenQueue([]);
-      queueIndexRef.current = 0;
+      imageGenRef.current = { queue: [], index: 0 };
       toast({ title: '所有角色图片生成完成' });
       return;
     }
@@ -102,10 +104,10 @@ export function useCanvasParseScript() {
     }).catch(() => {
       toast({ title: `角色 ${item.nodeId} 图片生成失败`, variant: 'destructive' });
       // Continue to next
-      queueIndexRef.current += 1;
+      imageGenRef.current = { queue, index: idx + 1 };
       processNextImage();
     });
-  }, [imageGenQueue]);
+  }, []);
 
   // Handle image task completion
   useEffect(() => {
@@ -115,16 +117,17 @@ export function useCanvasParseScript() {
     if (task.status === 'SUCCESS') {
       const imageUrl = (task.result as Record<string, unknown>)?.image_url as string ?? '';
       if (imageUrl) {
-        const item = imageGenQueue[queueIndexRef.current];
+        const gen = imageGenRef.current;
+        const item = gen.queue[gen.index];
         if (item) {
           const store = useCanvasStore.getState();
           store.applyImageToCharacter(item.nodeId, imageUrl);
         }
       }
       // Move to next
-      queueIndexRef.current += 1;
+      imageGenRef.current = { ...imageGenRef.current, index: imageGenRef.current.index + 1 };
       setCurrentImageTaskId(null);
-      setGenerationProgress({ completed: queueIndexRef.current, total: imageGenQueue.length });
+      setGenerationProgress({ completed: imageGenRef.current.index, total: imageGenRef.current.queue.length });
       // Process next after a short delay
       setTimeout(processNextImage, 500);
     }
@@ -136,11 +139,11 @@ export function useCanvasParseScript() {
         variant: 'destructive',
       });
       // Continue to next
-      queueIndexRef.current += 1;
+      imageGenRef.current = { ...imageGenRef.current, index: imageGenRef.current.index + 1 };
       setCurrentImageTaskId(null);
       setTimeout(processNextImage, 500);
     }
-  }, [imageTaskQuery.data, currentImageTaskId, imageGenQueue, processNextImage]);
+  }, [imageTaskQuery.data, currentImageTaskId, processNextImage]);
 
   // Apply result when parse task completes
   useEffect(() => {
@@ -218,8 +221,7 @@ export function useCanvasParseScript() {
       }
 
       if (queue.length > 0) {
-        setImageGenQueue(queue);
-        queueIndexRef.current = 0;
+        imageGenRef.current = { queue, index: 0 };
         setGenerationProgress({ completed: 0, total: queue.length });
         // Start processing
         setTimeout(processNextImage, 1000);
@@ -248,8 +250,8 @@ export function useCanvasParseScript() {
     setActiveTaskId(null);
     optsRef.current = null;
     setCurrentImageTaskId(null);
-    setImageGenQueue([]);
-    queueIndexRef.current = 0;
+    imageGenRef.current = { queue: [], index: 0 };
+    setGenerationProgress(null);
     setGenerationProgress(null);
   }, []);
 

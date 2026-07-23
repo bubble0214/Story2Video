@@ -68,7 +68,7 @@ function AssetCard({ node, onSelect, onApplyImage }: AssetCardProps) {
       onClick={() => onSelect(node.id)}
     >
       {/* Image area */}
-      <div className="aspect-square bg-muted flex items-center justify-center relative">
+      <div className="aspect-[9/16] bg-muted flex items-center justify-center relative">
         {(data as any).image || (data as any).imageUrl ? (
           <img
             src={(data as any).image || (data as any).imageUrl}

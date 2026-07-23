@@ -24,6 +24,16 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const TABS = [
   { key: 'character' as AssetCategory, label: '角色', Icon: User },
@@ -67,6 +77,10 @@ export function CanvasPage() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef(false);
+
+  // Save name dialog
+  const [showNameDialog, setShowNameDialog] = useState(false);
+  const [pendingName, setPendingName] = useState('');
 
   // Load existing canvas from store (persisted canvasId) or create a new one
   const loadMutation = useMutation({
@@ -136,8 +150,28 @@ export function CanvasPage() {
     const store = useCanvasStore.getState();
     const id = store.canvasId;
     if (!id) return;
+
+    // If title is still default, show name dialog
+    if (store.canvasTitle === 'Untitled Canvas' || !store.canvasTitle.trim()) {
+      setPendingName('');
+      setShowNameDialog(true);
+      return;
+    }
+
     setSaving(true);
     saveMutation.mutate({ id, data: store.getCanvasData(), title: store.canvasTitle });
+  };
+
+  const handleSaveWithName = () => {
+    const name = pendingName.trim();
+    if (!name) return;
+    const store = useCanvasStore.getState();
+    const id = store.canvasId;
+    if (!id) return;
+    store.setCanvasTitle(name);
+    setShowNameDialog(false);
+    setSaving(true);
+    saveMutation.mutate({ id, data: store.getCanvasData(), title: name });
   };
 
   // Auto-save debounce
@@ -251,6 +285,32 @@ export function CanvasPage() {
       <CameraControl />
       <ThreeViewPanel />
       <PanoramicPanel />
+
+      {/* Save name dialog */}
+      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>保存画布</DialogTitle>
+            <DialogDescription>请输入画布名称</DialogDescription>
+          </DialogHeader>
+          <Input
+            className="h-9 text-sm"
+            placeholder="输入画布名称..."
+            value={pendingName}
+            onChange={(e) => setPendingName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveWithName();
+            }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNameDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSaveWithName}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

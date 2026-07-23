@@ -46,9 +46,6 @@ export function useCanvasParseScript() {
   const taskQuery = useTaskPoll(activeTaskId ?? '', !!activeTaskId);
   const imageTaskQuery = useTaskPoll(currentImageTaskId ?? '', !!currentImageTaskId);
 
-  const taskQuery = useTaskPoll(activeTaskId ?? '', !!activeTaskId);
-  const imageTaskQuery = useTaskPoll(currentImageTaskId ?? '', !!currentImageTaskId);
-
   const createMutation = useMutation({
     mutationFn: (opts: ParseScriptOptions) => {
       optsRef.current = opts;

@@ -14,7 +14,7 @@ jobs:
         with:
           host: 103.233.253.246
           username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             cd /root/Story2Video
             git pull

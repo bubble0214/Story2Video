@@ -151,8 +151,11 @@ export function CanvasPage() {
     const id = store.canvasId;
     if (!id) return;
 
+    console.log('[doSave] canvasTitle:', JSON.stringify(store.canvasTitle), 'isDefault:', store.canvasTitle === 'Untitled Canvas');
+
     // If title is still default, show name dialog
     if (store.canvasTitle === 'Untitled Canvas' || !store.canvasTitle.trim()) {
+      console.log('[doSave] showing name dialog');
       setPendingName('');
       setShowNameDialog(true);
       return;

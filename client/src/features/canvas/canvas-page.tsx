@@ -24,16 +24,6 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 const TABS = [
   { key: 'character' as AssetCategory, label: '角色', Icon: User },
@@ -77,10 +67,6 @@ export function CanvasPage() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSave = useRef(false);
-
-  // Save name dialog
-  const [showNameDialog, setShowNameDialog] = useState(false);
-  const [pendingSaveData, setPendingSaveData] = useState<ReturnType<typeof getCanvasData> | null>(null);
 
   // Load existing canvas from store (persisted canvasId) or create a new one
   const loadMutation = useMutation({
@@ -150,29 +136,8 @@ export function CanvasPage() {
     const store = useCanvasStore.getState();
     const id = store.canvasId;
     if (!id) return;
-    const title = store.canvasTitle;
-    const data = store.getCanvasData();
-
-    // If title is still default, show name dialog
-    if (title === 'Untitled Canvas' || !title.trim()) {
-      setPendingSaveData(data);
-      setShowNameDialog(true);
-      return;
-    }
-
     setSaving(true);
-    saveMutation.mutate({ id, data, title });
-  };
-
-  const handleSaveWithName = () => {
-    const store = useCanvasStore.getState();
-    const id = store.canvasId;
-    const title = store.canvasTitle;
-    if (!id || !title.trim()) return;
-    setShowNameDialog(false);
-    setSaving(true);
-    saveMutation.mutate({ id, data: pendingSaveData!, title });
-    setPendingSaveData(null);
+    saveMutation.mutate({ id, data: store.getCanvasData(), title: store.canvasTitle });
   };
 
   // Auto-save debounce
@@ -193,6 +158,14 @@ export function CanvasPage() {
       }
     };
   }, [isDirty, nodes, canvasTitle, canvasId]);
+
+  // Manual save: watch manualSaveSignal from toolbar
+  const manualSaveSignal = useCanvasStore((s) => s.manualSaveSignal);
+  useEffect(() => {
+    if (manualSaveSignal > 0) {
+      doSave();
+    }
+  }, [manualSaveSignal]);
 
   // Flush save on unmount
   useEffect(() => {
@@ -278,32 +251,6 @@ export function CanvasPage() {
       <CameraControl />
       <ThreeViewPanel />
       <PanoramicPanel />
-
-      {/* Save name dialog */}
-      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>保存画布</DialogTitle>
-            <DialogDescription>请输入画布名称</DialogDescription>
-          </DialogHeader>
-          <Input
-            className="h-9 text-sm"
-            placeholder="输入画布名称..."
-            value={canvasTitle === 'Untitled Canvas' ? '' : canvasTitle}
-            onChange={(e) => useCanvasStore.getState().setCanvasTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveWithName();
-            }}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNameDialog(false)}>
-              取消
-            </Button>
-            <Button onClick={handleSaveWithName}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

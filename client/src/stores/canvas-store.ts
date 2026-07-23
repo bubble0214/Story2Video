@@ -88,6 +88,10 @@ interface CanvasStore {
   // Batch operations
   batchGenerate: (nodeIds?: string[]) => void;
   getNodesByCategory: (category: AssetCategory) => Node<CanvasNodeData>[];
+
+  // Manual save trigger (incremented by toolbar button, watched by page)
+  manualSaveSignal: number;
+  requestManualSave: () => void;
 }
 
 let nodeCounter = 0;
@@ -125,11 +129,11 @@ export const useCanvasStore = create<CanvasStore>()(
       setViewport: (viewport) => set({ viewport }),
       resetViewport: () => set({ viewport: { x: 0, y: 0, zoom: 1 } }),
       focusOnNode: (nodeId) => {
-        // Focus is handled by ReactFlow's fitView or setCenter
-        // This just selects the node for now
         set({ selectedNodeId: nodeId });
       },
       setActiveToolPanel: (panel) => set({ activeToolPanel: panel }),
+      manualSaveSignal: 0,
+      requestManualSave: () => set((s) => ({ manualSaveSignal: s.manualSaveSignal + 1 })),
       organizeCanvas: () => {
         const { nodes } = get();
         const grouped: Record<string, Node<CanvasNodeData>[]> = {};

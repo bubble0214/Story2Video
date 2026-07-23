@@ -78,9 +78,7 @@ export function CanvasToolbar() {
         className="h-7 gap-1 text-xs"
         disabled={!isDirty || isSaving}
         onClick={() => {
-          // Save is handled by auto-save in canvas-page
-          // This button triggers the callback set on the store
-          useCanvasStore.setState({ isDirty: true });
+          useCanvasStore.getState().requestManualSave();
         }}
       >
         {isSaving ? (

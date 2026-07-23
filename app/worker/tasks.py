@@ -1693,7 +1693,7 @@ async def _step_canvas_generate_image(
     params = {
         "width": width,
         "height": height,
-        "seed": hash(prompt) % (2**31),
+        "seed": hash(prompt + str(uuid.uuid4())) % (2**31),
         "nologo": "true",
     }
     qs = "&".join(f"{k}={v}" for k, v in params.items())

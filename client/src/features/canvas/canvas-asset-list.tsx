@@ -168,7 +168,7 @@ export function AssetList({ category }: AssetListProps) {
   const scriptAssetsQuery = useQuery({
     queryKey: ['tasks', 'script_assets'],
     queryFn: async () => {
-      const resp = await tasksApi.list({});
+      const resp = await tasksApi.list({ limit: 50 });
       // Filter for script-related workflow types
       return resp.data.items.filter(
         (t: TaskResp) =>
@@ -562,7 +562,15 @@ export function AssetList({ category }: AssetListProps) {
                     const result = task.result as Record<string, unknown> | undefined;
                     const scriptContent = (result?.script_content ?? result?.script ?? '') as string;
                     const scriptPreview = scriptContent ? scriptContent.slice(0, 120) + (scriptContent.length > 120 ? '...' : '') : '无剧本内容';
-                    const title = (result?.title as string) || '未命名剧本';
+                    const title = (result?.title as string) || (() => {
+                      // For canvas_parse_script, derive title from characters
+                      const chars = result?.characters as { name?: string }[] | undefined;
+                      if (chars && chars.length > 0) {
+                        const names = chars.map(c => c.name).filter(Boolean).slice(0, 3);
+                        return names.length > 0 ? names.join('、') : '未命名剧本';
+                      }
+                      return '未命名剧本';
+                    })();
                     const statusInfo = SCRIPT_STATUS_MAP[task.status] ?? { label: task.status, variant: 'outline' as const };
                     const isComplete = task.status === 'SUCCESS';
                     return (

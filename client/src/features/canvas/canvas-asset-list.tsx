@@ -16,6 +16,8 @@ import {
   Trash2,
   Upload,
   FolderOpen,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import type { Node } from '@xyflow/react';
 import type { CanvasNodeData, AssetCategory } from '@/types/canvas';
 import { useCanvasParseScript } from '@/hooks/use-canvas-parse-script';
@@ -159,16 +162,26 @@ export function AssetList({ category }: AssetListProps) {
   const { parse, isParsing, isGeneratingImages, generationProgress } = useCanvasParseScript();
   const prevParsing = useRef(false);
 
-  // Query completed generate_script tasks for asset selection
+  // Query script-related tasks for asset selection (show both in-progress and completed)
   const scriptAssetsQuery = useQuery({
-    queryKey: ['tasks', 'generate_script'],
+    queryKey: ['tasks', 'script_assets'],
     queryFn: async () => {
-      const resp = await tasksApi.list({ workflow_type: 'generate_script' });
-      // Filter SUCCESS tasks client-side
-      return resp.data.items.filter((t: TaskResp) => t.status === 'SUCCESS');
+      const resp = await tasksApi.list({});
+      // Filter for script-related workflow types
+      return resp.data.items.filter(
+        (t: TaskResp) =>
+          t.workflow_type === 'generate_script' || t.workflow_type === 'canvas_parse_script'
+      );
     },
     enabled: showAssetPicker,
   });
+
+  const SCRIPT_STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    SUCCESS: { label: '已完成', variant: 'default' },
+    RUNNING: { label: '进行中', variant: 'secondary' },
+    PENDING: { label: '等待中', variant: 'outline' },
+    FAILED: { label: '失败', variant: 'destructive' },
+  };
 
   // Auto-close dialog when parsing completes
   useEffect(() => {
@@ -224,6 +237,7 @@ export function AssetList({ category }: AssetListProps) {
   };
 
   const handleSelectScriptAsset = (task: TaskResp) => {
+    if (task.status !== 'SUCCESS') return;
     const script = (task.result as Record<string, unknown>)?.script as string ?? '';
     if (script) setScriptText(script);
     setShowAssetPicker(false);
@@ -407,7 +421,7 @@ export function AssetList({ category }: AssetListProps) {
           <DialogHeader>
             <DialogTitle>选择已有剧本</DialogTitle>
             <DialogDescription>
-              从之前成功生成的任务中选择一个剧本。
+              从之前生成或解析中的剧本任务中选择一个。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -416,21 +430,40 @@ export function AssetList({ category }: AssetListProps) {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : scriptAssetsQuery.data?.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">暂无已完成剧本任务</p>
+              <p className="text-sm text-muted-foreground text-center py-8">暂无剧本任务</p>
             ) : (
               scriptAssetsQuery.data?.map((task) => {
                 const result = task.result as Record<string, unknown> | undefined;
                 const scriptPreview = typeof result?.script === 'string'
                   ? (result.script as string).slice(0, 120) + '...'
                   : '无剧本内容';
+                const title = result?.title as string ?? task.id;
+                const statusInfo = SCRIPT_STATUS_MAP[task.status] ?? { label: task.status, variant: 'outline' as const };
+                const isComplete = task.status === 'SUCCESS';
                 return (
                   <button
                     key={task.id}
-                    className="w-full text-left p-3 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
+                    className={`w-full text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                      isComplete
+                        ? 'hover:border-primary/50'
+                        : 'opacity-70 cursor-default'
+                    }`}
                     onClick={() => handleSelectScriptAsset(task)}
+                    disabled={!isComplete}
                   >
-                    <p className="text-sm font-medium truncate">{task.id}</p>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{scriptPreview}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium truncate">{title}</p>
+                      <Badge variant={statusInfo.variant} className="shrink-0 text-[10px] h-5">
+                        {isComplete ? <CheckCircle2 className="w-3 h-3 mr-0.5" /> : <Clock className="w-3 h-3 mr-0.5" />}
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {isComplete ? scriptPreview : '任务尚未完成，请稍后再试'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-1">
+                      {new Date(task.created_at).toLocaleDateString()} · {task.workflow_type === 'canvas_parse_script' ? '剧本解析' : '剧本生成'}
+                    </p>
                   </button>
                 );
               })

@@ -14,7 +14,6 @@ import {
   Image,
   Upload,
   FolderOpen,
-  Clock,
   CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -168,22 +167,14 @@ export function AssetList({ category }: AssetListProps) {
   const scriptAssetsQuery = useQuery({
     queryKey: ['tasks', 'script_assets'],
     queryFn: async () => {
-      const resp = await tasksApi.list({ limit: 50 });
-      // Filter for script-related workflow types
+      const resp = await tasksApi.list({ limit: 50, workflow_type: 'generate_script' });
+      // Only show completed generate_script tasks
       return resp.data.items.filter(
-        (t: TaskResp) =>
-          t.workflow_type === 'generate_script' || t.workflow_type === 'canvas_parse_script'
+        (t: TaskResp) => t.status === 'SUCCESS'
       );
     },
     enabled: showAssetPicker,
   });
-
-  const SCRIPT_STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    SUCCESS: { label: '已完成', variant: 'default' },
-    RUNNING: { label: '进行中', variant: 'secondary' },
-    PENDING: { label: '等待中', variant: 'outline' },
-    FAILED: { label: '失败', variant: 'destructive' },
-  };
 
   // Auto-close dialog when parsing completes
   useEffect(() => {
@@ -239,7 +230,6 @@ export function AssetList({ category }: AssetListProps) {
   };
 
   const handleSelectScriptAsset = (task: TaskResp) => {
-    if (task.status !== 'SUCCESS') return;
     const result = task.result as Record<string, unknown> | undefined;
     const scenes = result?.generated_scenes as { num: string; content: string; location?: string; summary?: string }[] | undefined;
     if (scenes && scenes.length > 0) {
@@ -562,40 +552,25 @@ export function AssetList({ category }: AssetListProps) {
                     const result = task.result as Record<string, unknown> | undefined;
                     const scriptContent = (result?.script_content ?? result?.script ?? '') as string;
                     const scriptPreview = scriptContent ? scriptContent.slice(0, 120) + (scriptContent.length > 120 ? '...' : '') : '无剧本内容';
-                    const title = (result?.title as string) || (() => {
-                      // For canvas_parse_script, derive title from characters
-                      const chars = result?.characters as { name?: string }[] | undefined;
-                      if (chars && chars.length > 0) {
-                        const names = chars.map(c => c.name).filter(Boolean).slice(0, 3);
-                        return names.length > 0 ? names.join('、') : '未命名剧本';
-                      }
-                      return '未命名剧本';
-                    })();
-                    const statusInfo = SCRIPT_STATUS_MAP[task.status] ?? { label: task.status, variant: 'outline' as const };
-                    const isComplete = task.status === 'SUCCESS';
+                    const title = (result?.title as string) || '未命名剧本';
                     return (
                       <button
                         key={task.id}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                          isComplete
-                            ? 'cursor-pointer hover:border-primary/50'
-                            : 'opacity-60 cursor-not-allowed bg-muted/30'
-                        }`}
+                        className="w-full text-left p-3 rounded-lg border transition-colors cursor-pointer hover:border-primary/50"
                         onClick={() => handleSelectScriptAsset(task)}
-                        disabled={!isComplete}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium truncate">{title}</p>
-                          <Badge variant={statusInfo.variant} className="shrink-0 text-[10px] h-5">
-                            {isComplete ? <CheckCircle2 className="w-3 h-3 mr-0.5" /> : <Clock className="w-3 h-3 mr-0.5" />}
-                            {statusInfo.label}
+                          <Badge variant="default" className="shrink-0 text-[10px] h-5">
+                            <CheckCircle2 className="w-3 h-3 mr-0.5" />
+                            已完成
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {isComplete ? scriptPreview : '任务尚未完成，请稍后再试'}
+                          {scriptPreview}
                         </p>
                         <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {new Date(task.created_at).toLocaleDateString()} · {task.workflow_type === 'canvas_parse_script' ? '剧本解析' : '剧本生成'}
+                          {new Date(task.created_at).toLocaleDateString()} · 剧本生成
                         </p>
                       </button>
                     );

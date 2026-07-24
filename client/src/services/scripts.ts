@@ -26,9 +26,6 @@ export interface DiagnoseReq {
 
 export interface SceneModifiedStoryboard {
   storyboard_content: string;
-  character_prompts: string;
-  scene_prompts: string;
-  prop_prompts: string;
 }
 
 export interface SceneDiagnosisResp {

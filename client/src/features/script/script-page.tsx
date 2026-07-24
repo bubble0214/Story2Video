@@ -126,7 +126,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
   const [frequentDiagnosisResult, setFrequentDiagnosisResult] = useState<{
     diagnosis: string;
     modifiedScenes: Record<string, string> | null;
-    modifiedStoryboards: Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }> | null;
+    modifiedStoryboards: Record<string, { storyboard_content: string }> | null;
     sceneCount: number;
   } | null>(null);
   const scenesInitializedRef = useRef(false);
@@ -137,10 +137,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
   const [sceneStoryboards, setSceneStoryboards] = useState<Record<number, string>>({});
   const [storyboardStyle, setStoryboardStyle] = useState<string>('');
   const [storyboardEnabled, setStoryboardEnabled] = useState(true);
-  const [activeSceneView, setActiveSceneView] = useState<'script' | 'storyboard' | 'character_prompt' | 'scene_prompt' | 'prop_prompt'>('script');
-  const [sceneCharacterPrompts, setSceneCharacterPrompts] = useState<Record<number, string>>({});
-  const [sceneScenePrompts, setSceneScenePrompts] = useState<Record<number, string>>({});
-  const [scenePropPrompts, setScenePropPrompts] = useState<Record<number, string>>({});
+  const [activeSceneView, setActiveSceneView] = useState<'script' | 'storyboard'>('script');
 
   // ── Draft persistence ──
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -206,9 +203,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         }
         if (sd.generatedScenes) setGeneratedScenes(sd.generatedScenes as Record<number, string>);
         if (sd.sceneStoryboards) setSceneStoryboards(sd.sceneStoryboards as Record<number, string>);
-        if (sd.sceneCharacterPrompts) setSceneCharacterPrompts(sd.sceneCharacterPrompts as Record<number, string>);
-        if (sd.sceneScenePrompts) setSceneScenePrompts(sd.sceneScenePrompts as Record<number, string>);
-        if (sd.scenePropPrompts) setScenePropPrompts(sd.scenePropPrompts as Record<number, string>);
         if (sd.accumulatedScript) setAccumulatedScript(sd.accumulatedScript as string);
         if (typeof sd.currentSceneIdx === 'number') setCurrentSceneIdx(sd.currentSceneIdx as number);
         if (typeof sd.lastDiagnosedIdx === 'number') setLastDiagnosedIdx(sd.lastDiagnosedIdx as number);
@@ -250,9 +244,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
             parsedScenes,
             generatedScenes,
             sceneStoryboards,
-            sceneCharacterPrompts,
-            sceneScenePrompts,
-            scenePropPrompts,
             accumulatedScript,
             currentSceneIdx,
             lastDiagnosedIdx,
@@ -293,9 +284,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
           parsedScenes,
           generatedScenes,
           sceneStoryboards,
-          sceneCharacterPrompts,
-          sceneScenePrompts,
-          scenePropPrompts,
           accumulatedScript,
           currentSceneIdx,
           lastDiagnosedIdx,
@@ -308,7 +296,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         } as unknown as DraftStepData,
       });
     } catch { /* silent */ }
-  }, [activeTab, characterSettings, novelContent, novelAnalysis, scriptTitle, structureContent, chosenStructure, sceneOutlineContent, parsedScenes, generatedScenes, sceneStoryboards, sceneCharacterPrompts, sceneScenePrompts, scenePropPrompts, accumulatedScript, currentSceneIdx, lastDiagnosedIdx, diagnosisResult, interactiveScriptDone, extraPrompt, genModel]);
+  }, [activeTab, characterSettings, novelContent, novelAnalysis, scriptTitle, structureContent, chosenStructure, sceneOutlineContent, parsedScenes, generatedScenes, sceneStoryboards, accumulatedScript, currentSceneIdx, lastDiagnosedIdx, diagnosisResult, interactiveScriptDone, extraPrompt, genModel]);
 
   // Save on tab change
   const handleTabChange = (tab: string) => {
@@ -661,18 +649,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         if (storyboardContent) {
           setSceneStoryboards(prev => ({ ...prev, [sceneIndex]: storyboardContent }));
         }
-        const characterPrompts = result.character_prompts as string | undefined;
-        if (characterPrompts) {
-          setSceneCharacterPrompts(prev => ({ ...prev, [sceneIndex]: characterPrompts }));
-        }
-        const scenePrompts = result.scene_prompts as string | undefined;
-        if (scenePrompts) {
-          setSceneScenePrompts(prev => ({ ...prev, [sceneIndex]: scenePrompts }));
-        }
-        const propPrompts = result.prop_prompts as string | undefined;
-        if (propPrompts) {
-          setScenePropPrompts(prev => ({ ...prev, [sceneIndex]: propPrompts }));
-        }
         setParsedScenes(prev => prev.map(s => s.index === sceneIndex ? { ...s, status: 'completed' as const } : s));
         setAccumulatedScript(prev => prev ? `${prev}\n\n${finalContent}` : finalContent);
         setCurrentSceneIdx(sceneIndex + 1);
@@ -720,23 +696,14 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
       if (diagnosis) {
         setDiagnosisResult(diagnosis);
         setDiagnosisModifiedScenes(modified || null);
-        // Save downstream storyboard/prompt data for modified scenes
-        const modifiedStoryboards = result.modified_storyboards as Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }> | undefined;
+        // Save downstream storyboard data for modified scenes
+        const modifiedStoryboards = result.modified_storyboards as Record<string, { storyboard_content: string }> | undefined;
         if (modifiedStoryboards) {
           for (const [sceneNumStr, sbData] of Object.entries(modifiedStoryboards)) {
             const idx = parseInt(sceneNumStr, 10) - 1; // 1-based → 0-based
             if (isNaN(idx)) continue;
             if (sbData.storyboard_content) {
               setSceneStoryboards(prev => ({ ...prev, [idx]: sbData.storyboard_content }));
-            }
-            if (sbData.character_prompts) {
-              setSceneCharacterPrompts(prev => ({ ...prev, [idx]: sbData.character_prompts }));
-            }
-            if (sbData.scene_prompts) {
-              setSceneScenePrompts(prev => ({ ...prev, [idx]: sbData.scene_prompts }));
-            }
-            if (sbData.prop_prompts) {
-              setScenePropPrompts(prev => ({ ...prev, [idx]: sbData.prop_prompts }));
             }
           }
         }
@@ -784,7 +751,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         setFrequentDiagnosisResult({
           diagnosis,
           modifiedScenes: modified || null,
-          modifiedStoryboards: (result.modified_storyboards as Record<string, { storyboard_content: string; character_prompts: string; scene_prompts: string; prop_prompts: string }>) || null,
+          modifiedStoryboards: (result.modified_storyboards as Record<string, { storyboard_content: string }>) || null,
           sceneCount: completedCount,
         });
         toast({
@@ -973,7 +940,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
     setGeneratedScenes(updated);
     const allIndices = Object.keys(updated).map(Number).sort((a, b) => a - b);
     setAccumulatedScript(allIndices.map(i => updated[i]).join('\n\n'));
-    // Apply downstream storyboard/prompt data
+    // Apply downstream storyboard data
     if (frequentDiagnosisResult.modifiedStoryboards) {
       for (const [sceneNumStr, sbData] of Object.entries(frequentDiagnosisResult.modifiedStoryboards)) {
         const idx = parseInt(sceneNumStr, 10) - 1;
@@ -981,20 +948,11 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
         if (sbData.storyboard_content) {
           setSceneStoryboards(prev => ({ ...prev, [idx]: sbData.storyboard_content }));
         }
-        if (sbData.character_prompts) {
-          setSceneCharacterPrompts(prev => ({ ...prev, [idx]: sbData.character_prompts }));
-        }
-        if (sbData.scene_prompts) {
-          setSceneScenePrompts(prev => ({ ...prev, [idx]: sbData.scene_prompts }));
-        }
-        if (sbData.prop_prompts) {
-          setScenePropPrompts(prev => ({ ...prev, [idx]: sbData.prop_prompts }));
-        }
       }
     }
     saveImmediate();
     setFrequentDiagnosisResult(null);
-  }, [frequentDiagnosisResult, generatedScenes, saveImmediate, setSceneStoryboards, setSceneCharacterPrompts, setSceneScenePrompts, setScenePropPrompts]);
+  }, [frequentDiagnosisResult, generatedScenes, saveImmediate, setSceneStoryboards]);
 
   const handleDismissPeriodicDiagnosis = useCallback(() => {
     setFrequentDiagnosisResult(null);
@@ -1953,39 +1911,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                           <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
                         )}
                       </button>
-                      <button
-                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                          activeSceneView === 'character_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                        onClick={() => setActiveSceneView('character_prompt')}
-                      >
-                        角色生图
-                        {sceneCharacterPrompts[selectedSceneIndex!] && (
-                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
-                        )}
-                      </button>
-                      <button
-                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                          activeSceneView === 'scene_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                        onClick={() => setActiveSceneView('scene_prompt')}
-                      >
-                        场景生图
-                        {sceneScenePrompts[selectedSceneIndex!] && (
-                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
-                        )}
-                      </button>
-                      <button
-                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                          activeSceneView === 'prop_prompt' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                        onClick={() => setActiveSceneView('prop_prompt')}
-                      >
-                        道具生图
-                        {scenePropPrompts[selectedSceneIndex!] && (
-                          <CheckCircle2 className="h-2.5 w-2.5 inline ml-1 text-green-500" />
-                        )}
-                      </button>
                     </div>
                   )}
 
@@ -2071,69 +1996,6 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                           <div className="text-center py-12 text-muted-foreground text-sm">
                             <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
                             <p>尚未生成分镜头脚本。请在生成时勾选"同时生成分镜头脚本"。</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {activeSceneView === 'character_prompt' && (
-                      <div className="space-y-3">
-                        {sceneCharacterPrompts[selectedSceneIndex!] ? (
-                          <textarea
-                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
-                            value={sceneCharacterPrompts[selectedSceneIndex!] || ''}
-                            onChange={(e) =>
-                              setSceneCharacterPrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
-                            }
-                            rows={12}
-                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场角色生图提示词`}
-                          />
-                        ) : (
-                          <div className="text-center py-12 text-muted-foreground text-sm">
-                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                            <p>尚未生成角色生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {activeSceneView === 'scene_prompt' && (
-                      <div className="space-y-3">
-                        {sceneScenePrompts[selectedSceneIndex!] ? (
-                          <textarea
-                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
-                            value={sceneScenePrompts[selectedSceneIndex!] || ''}
-                            onChange={(e) =>
-                              setSceneScenePrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
-                            }
-                            rows={12}
-                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场场景生图提示词`}
-                          />
-                        ) : (
-                          <div className="text-center py-12 text-muted-foreground text-sm">
-                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                            <p>尚未生成场景生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {activeSceneView === 'prop_prompt' && (
-                      <div className="space-y-3">
-                        {scenePropPrompts[selectedSceneIndex!] ? (
-                          <textarea
-                            className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y font-mono leading-relaxed"
-                            value={scenePropPrompts[selectedSceneIndex!] || ''}
-                            onChange={(e) =>
-                              setScenePropPrompts(prev => ({ ...prev, [selectedSceneIndex!]: e.target.value }))
-                            }
-                            rows={12}
-                            aria-label={`第${parsedScenes[selectedSceneIndex!]?.num && parsedScenes[selectedSceneIndex!]!.num !== '0' ? parsedScenes[selectedSceneIndex!]!.num : (selectedSceneIndex! + 1)}场道具生图提示词`}
-                          />
-                        ) : (
-                          <div className="text-center py-12 text-muted-foreground text-sm">
-                            <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                            <p>尚未生成道具生图提示词。请在生成时勾选"同时生成分镜头脚本"。</p>
                           </div>
                         )}
                       </div>

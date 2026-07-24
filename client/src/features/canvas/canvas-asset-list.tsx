@@ -560,19 +560,18 @@ export function AssetList({ category }: AssetListProps) {
                 ) : (
                   scriptAssetsQuery.data?.map((task) => {
                     const result = task.result as Record<string, unknown> | undefined;
-                    const scriptPreview = typeof result?.script === 'string'
-                      ? (result.script as string).slice(0, 120) + '...'
-                      : '无剧本内容';
-                    const title = result?.title as string ?? task.id;
+                    const scriptContent = (result?.script_content ?? result?.script ?? '') as string;
+                    const scriptPreview = scriptContent ? scriptContent.slice(0, 120) + (scriptContent.length > 120 ? '...' : '') : '无剧本内容';
+                    const title = (result?.title as string) || '未命名剧本';
                     const statusInfo = SCRIPT_STATUS_MAP[task.status] ?? { label: task.status, variant: 'outline' as const };
                     const isComplete = task.status === 'SUCCESS';
                     return (
                       <button
                         key={task.id}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
                           isComplete
-                            ? 'hover:border-primary/50'
-                            : 'opacity-70 cursor-default'
+                            ? 'cursor-pointer hover:border-primary/50'
+                            : 'opacity-60 cursor-not-allowed bg-muted/30'
                         }`}
                         onClick={() => handleSelectScriptAsset(task)}
                         disabled={!isComplete}

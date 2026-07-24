@@ -11,11 +11,11 @@ import {
   Plus,
   MoveRight,
   Loader2,
-  UserPlus,
   Image,
-  Trash2,
   Upload,
   FolderOpen,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,9 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import type { Node } from '@xyflow/react';
 import type { CanvasNodeData, AssetCategory } from '@/types/canvas';
 import { useCanvasParseScript } from '@/hooks/use-canvas-parse-script';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { tasksApi } from '@/services/tasks';
 import type { TaskResp } from '@/types/task';
 
@@ -156,19 +159,31 @@ export function AssetList({ category }: AssetListProps) {
   const [scriptText, setScriptText] = useState('');
   const [scriptStyle, setScriptStyle] = useState('');
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskResp | null>(null);
+  const [selectedScenes, setSelectedScenes] = useState<Set<string>>(new Set());
   const { parse, isParsing, isGeneratingImages, generationProgress } = useCanvasParseScript();
   const prevParsing = useRef(false);
 
-  // Query completed generate_script tasks for asset selection
+  // Query script-related tasks for asset selection (show both in-progress and completed)
   const scriptAssetsQuery = useQuery({
-    queryKey: ['tasks', 'generate_script'],
+    queryKey: ['tasks', 'script_assets'],
     queryFn: async () => {
-      const resp = await tasksApi.list({ workflow_type: 'generate_script' });
-      // Filter SUCCESS tasks client-side
-      return resp.data.items.filter((t: TaskResp) => t.status === 'SUCCESS');
+      const resp = await tasksApi.list({});
+      // Filter for script-related workflow types
+      return resp.data.items.filter(
+        (t: TaskResp) =>
+          t.workflow_type === 'generate_script' || t.workflow_type === 'canvas_parse_script'
+      );
     },
     enabled: showAssetPicker,
   });
+
+  const SCRIPT_STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    SUCCESS: { label: '已完成', variant: 'default' },
+    RUNNING: { label: '进行中', variant: 'secondary' },
+    PENDING: { label: '等待中', variant: 'outline' },
+    FAILED: { label: '失败', variant: 'destructive' },
+  };
 
   // Auto-close dialog when parsing completes
   useEffect(() => {
@@ -224,9 +239,36 @@ export function AssetList({ category }: AssetListProps) {
   };
 
   const handleSelectScriptAsset = (task: TaskResp) => {
-    const script = (task.result as Record<string, unknown>)?.script as string ?? '';
-    if (script) setScriptText(script);
+    if (task.status !== 'SUCCESS') return;
+    const result = task.result as Record<string, unknown> | undefined;
+    const scenes = result?.generated_scenes as { num: string; content: string; location?: string; summary?: string }[] | undefined;
+    if (scenes && scenes.length > 0) {
+      // Has generated scenes — go to scene selection step
+      setSelectedTask(task);
+      setSelectedScenes(new Set(scenes.map((_, i) => String(i))));
+    } else {
+      // No scenes (old format or canvas_parse_script) — fill script text and close
+      const script = (result?.script_content ?? result?.script ?? '') as string;
+      if (script) setScriptText(script);
+      setShowAssetPicker(false);
+    }
+  };
+
+  const handleParseSelectedScenes = () => {
+    if (!selectedTask) return;
+    const result = selectedTask.result as Record<string, unknown> | undefined;
+    const scenes = result?.generated_scenes as { num: string; content: string }[] | undefined;
+    if (!scenes || scenes.length === 0) return;
+    const selected = Array.from(selectedScenes).map((i) => scenes[Number(i)]).filter(Boolean);
+    if (selected.length === 0) return;
+    const combinedScript = selected.map((s) => s.content).join('\n\n');
+    setScriptText(combinedScript);
+    setSelectedTask(null);
     setShowAssetPicker(false);
+    // Trigger parse with the combined text
+    setTimeout(() => {
+      parse({ scriptText: combinedScript.trim(), parseType: 'all', style: scriptStyle });
+    }, 100);
   };
 
   return (
@@ -401,44 +443,163 @@ export function AssetList({ category }: AssetListProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Script asset picker dialog */}
-      <Dialog open={showAssetPicker} onOpenChange={setShowAssetPicker}>
+      {/* Script asset picker dialog — two-step: task list then scene selection */}
+      <Dialog
+        open={showAssetPicker}
+        onOpenChange={(open) => {
+          if (!open) { setSelectedTask(null); setSelectedScenes(new Set()); }
+          setShowAssetPicker(open);
+        }}
+      >
         <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>选择已有剧本</DialogTitle>
-            <DialogDescription>
-              从之前成功生成的任务中选择一个剧本。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {scriptAssetsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : scriptAssetsQuery.data?.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">暂无已完成剧本任务</p>
-            ) : (
-              scriptAssetsQuery.data?.map((task) => {
-                const result = task.result as Record<string, unknown> | undefined;
-                const scriptPreview = typeof result?.script === 'string'
-                  ? (result.script as string).slice(0, 120) + '...'
-                  : '无剧本内容';
+          {selectedTask ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>选择场景</DialogTitle>
+                <DialogDescription>
+                  {(selectedTask.result as Record<string, unknown>)?.title as string ?? '剧本'} —
+                  勾选要解析的场景，点击"解析选中场景"导入画布。
+                </DialogDescription>
+              </DialogHeader>
+              {(() => {
+                const result = selectedTask.result as Record<string, unknown> | undefined;
+                const scenes = result?.generated_scenes as { num: string; content: string; location?: string; summary?: string }[] | undefined;
+                if (!scenes || scenes.length === 0) {
+                  return <p className="text-sm text-muted-foreground text-center py-8">该剧本没有场景数据</p>;
+                }
+                const allSelected = selectedScenes.size === scenes.length;
                 return (
-                  <button
-                    key={task.id}
-                    className="w-full text-left p-3 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
-                    onClick={() => handleSelectScriptAsset(task)}
-                  >
-                    <p className="text-sm font-medium truncate">{task.id}</p>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{scriptPreview}</p>
-                  </button>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{scenes.length} 个场景</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          if (allSelected) setSelectedScenes(new Set());
+                          else setSelectedScenes(new Set(scenes.map((_, i) => String(i))));
+                        }}
+                      >
+                        {allSelected ? '取消全选' : '全选'}
+                      </Button>
+                    </div>
+                    <ScrollArea className="max-h-[320px] pr-3">
+                      <div className="space-y-2">
+                        {scenes.map((scene, idx) => (
+                          <label
+                            key={scene.num ?? idx}
+                            className="flex items-start gap-3 p-3 rounded-lg border hover:border-primary/50 transition-colors cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={selectedScenes.has(String(idx))}
+                              onCheckedChange={() => {
+                                const next = new Set(selectedScenes);
+                                if (next.has(String(idx))) next.delete(String(idx));
+                                else next.add(String(idx));
+                                setSelectedScenes(next);
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-primary shrink-0">
+                                  第{String(Number(scene.num) + 1)}场
+                                </span>
+                                {scene.location && (
+                                  <Badge variant="outline" className="text-[10px] h-5">
+                                    {scene.location}
+                                  </Badge>
+                                )}
+                              </div>
+                              {scene.summary && (
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{scene.summary}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-2">{scene.content}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => { setSelectedTask(null); setSelectedScenes(new Set()); }}
+                      >
+                        返回
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={selectedScenes.size === 0}
+                        onClick={handleParseSelectedScenes}
+                      >
+                        解析选中场景 ({selectedScenes.size})
+                      </Button>
+                    </div>
+                  </div>
                 );
-              })
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssetPicker(false)}>关闭</Button>
-          </DialogFooter>
+              })()}
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>选择已有剧本</DialogTitle>
+                <DialogDescription>
+                  从之前生成或解析中的剧本任务中选择一个。
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                {scriptAssetsQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : scriptAssetsQuery.data?.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">暂无剧本任务</p>
+                ) : (
+                  scriptAssetsQuery.data?.map((task) => {
+                    const result = task.result as Record<string, unknown> | undefined;
+                    const scriptPreview = typeof result?.script === 'string'
+                      ? (result.script as string).slice(0, 120) + '...'
+                      : '无剧本内容';
+                    const title = result?.title as string ?? task.id;
+                    const statusInfo = SCRIPT_STATUS_MAP[task.status] ?? { label: task.status, variant: 'outline' as const };
+                    const isComplete = task.status === 'SUCCESS';
+                    return (
+                      <button
+                        key={task.id}
+                        className={`w-full text-left p-3 rounded-lg border transition-colors cursor-pointer ${
+                          isComplete
+                            ? 'hover:border-primary/50'
+                            : 'opacity-70 cursor-default'
+                        }`}
+                        onClick={() => handleSelectScriptAsset(task)}
+                        disabled={!isComplete}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium truncate">{title}</p>
+                          <Badge variant={statusInfo.variant} className="shrink-0 text-[10px] h-5">
+                            {isComplete ? <CheckCircle2 className="w-3 h-3 mr-0.5" /> : <Clock className="w-3 h-3 mr-0.5" />}
+                            {statusInfo.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {isComplete ? scriptPreview : '任务尚未完成，请稍后再试'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          {new Date(task.created_at).toLocaleDateString()} · {task.workflow_type === 'canvas_parse_script' ? '剧本解析' : '剧本生成'}
+                        </p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowAssetPicker(false); setSelectedTask(null); setSelectedScenes(new Set()); }}>关闭</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

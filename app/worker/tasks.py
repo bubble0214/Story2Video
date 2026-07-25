@@ -2004,6 +2004,95 @@ async def _step_canvas_generate_scene_prompt(
     }
 
 
+async def _step_canvas_generate_prop_prompt(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Two-step process from script scene text: extract prop inventory then generate image prompts.
+
+    input_params expects:
+      - scene_text (str): the script text for one or more scenes
+      - scene_name (str, optional): scene name for context
+      - style (str, optional): art style (e.g. "废土科幻", "现代极简")
+
+    Returns:
+      - raw_inventory (str): Step 1 LLM result (prop inventory in Markdown table)
+      - raw_prompts (str): Step 2 LLM result (generated image prompts)
+      - error (str, optional): error message if any
+    """
+    scene_text = input_params.get("scene_text", "").strip()
+    style = input_params.get("style", "").strip()
+
+    if not scene_text:
+        return {"raw_inventory": "", "raw_prompts": ""}
+
+    style_instruction = f"\n全片美术风格：{style}" if style else ""
+
+    # ── Step 1: Extract prop inventory ──
+    step1_system = (
+        "你是一位资深的电影美术指导与道具师。我将给你一场戏的剧本，"
+        "请你从中提取所有会被镜头拍摄到的道具，并生成一份详细的“道具陈设与生图清单”。\n\n"
+        "提取规则：\n"
+        "1. 按“场景主陈设”、“手持/关键道具”、“人物装饰”三类分别列出。\n"
+        "2. 每个道具都需要推测或描述其材质、颜色、年代感、风格。"
+        "如果剧本未写明，请根据人物身份、时代背景和氛围进行合理推断，并用括号标注（推断）。\n"
+        "3. 对每个道具，给出一个用于AI生图的核心描述短句。\n"
+        "4. 单独列出该场戏中具有特殊叙事功能的核心道具，并附上50字内的视觉重要性说明。\n\n"
+        "输出格式：Markdown表格，列名：分类 | 道具名称 | 特征描述（材质/颜色/年代/风格） | "
+        "AI生图核心短句 | 是否为叙事核心\n\n"
+        f"{style_instruction}"
+    )
+
+    step1_user = f"剧本内容：\n{scene_text}\n\n请按上述要求提取道具清单。"
+
+    messages1 = [
+        {"role": "system", "content": step1_system},
+        {"role": "user", "content": step1_user},
+    ]
+
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+
+    raw_inventory = await provider.chat(messages1)
+    raw_inventory = raw_inventory.strip().strip("`").strip()
+    if not raw_inventory:
+        return {"raw_inventory": "", "raw_prompts": ""}
+
+    # ── Step 2: Generate high-quality image prompts ──
+    step2_system = (
+        "将以下道具清单转化为适用于Midjourney/Stable Diffusion的英文/中文高质量绘画提示词。"
+        "每个提示词需遵循以下公式：\n"
+        "[主体描述] + [材质与细节] + [环境与光影] + [构图与视角] + [风格标签]\n\n"
+        "要求：\n"
+        "1. 视角统一为“近距离特写”或“静物拍摄”，避免出现完整人物。\n"
+        "2. 背景简洁，使用“深色背景，电影级布光，柔和阴影”来突出道具质感。\n"
+        "3. 风格标签加入：concept art, highly detailed, 8k, octane render, photorealistic"
+        f"{'（或根据风格改为' + style + '风' + '）' if style else ''}\n"
+        "4. 若道具为系列物品（如一组药瓶），请明确数量。\n\n"
+        "请直接为每件道具输出对应的完整提示词。不要包含示例或额外说明。\n"
+        f"{style_instruction}"
+    )
+
+    step2_user = f"道具清单：\n{raw_inventory}\n\n请直接输出每件道具对应的完整提示词。"
+
+    messages2 = [
+        {"role": "system", "content": step2_system},
+        {"role": "user", "content": step2_user},
+    ]
+
+    raw_prompts = await provider.chat(messages2)
+    raw_prompts = raw_prompts.strip().strip("`").strip()
+
+    return {
+        "raw_inventory": raw_inventory,
+        "raw_prompts": raw_prompts,
+    }
+
+
 # ── Step registry ─────────────────────────────────────────────────────
 
 _STEP_REGISTRY = {
@@ -2029,6 +2118,7 @@ _STEP_REGISTRY = {
     "canvas_generate_image": _step_canvas_generate_image,
     "canvas_parse_script": _step_canvas_parse_script,
     "canvas_generate_scene_prompt": _step_canvas_generate_scene_prompt,
+    "canvas_generate_prop_prompt": _step_canvas_generate_prop_prompt,
     "generate_video": _step_generate_video,
     "generate_mv": _step_generate_mv,
     "generate_mv_storyboard": _step_generate_mv_storyboard,
@@ -2057,6 +2147,7 @@ _STEP_WEIGHTS = {
     "canvas_generate_image": 5.0,
     "canvas_parse_script": 10.0,
     "canvas_generate_scene_prompt": 10.0,
+    "canvas_generate_prop_prompt": 15.0,
     "generate_video": 5.0,
     "generate_mv": 15.0,
     "generate_mv_storyboard": 10.0,
@@ -2089,6 +2180,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "canvas_generate_image": ["canvas_generate_image"],
     "canvas_parse_script": ["canvas_parse_script"],
     "canvas_generate_scene_prompt": ["canvas_generate_scene_prompt"],
+    "canvas_generate_prop_prompt": ["canvas_generate_prop_prompt"],
     "generate_video": [
         "search_reference_novels",
         "generate_novel",
@@ -2128,6 +2220,7 @@ _STEP_LABELS: dict[str, str] = {
     "canvas_generate_image": "画布图片生成",
     "canvas_parse_script": "剧本解析中",
     "canvas_generate_scene_prompt": "场景提示词生成中",
+    "canvas_generate_prop_prompt": "道具提示词生成中",
     "generate_video": "生成视频",
     "generate_mv": "生成音乐视频",
     "generate_mv_storyboard": "生成MV分镜脚本",
@@ -2468,6 +2561,18 @@ def workflow_canvas_parse_script(task_id: str, user_id: str, input_params: dict)
 def workflow_canvas_generate_scene_prompt(task_id: str, user_id: str, input_params: dict) -> dict:
     """Single-step workflow: generate scene image prompt from script text."""
     steps = _WORKFLOWS["canvas_generate_scene_prompt"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_canvas_generate_prop_prompt",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_canvas_generate_prop_prompt(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Single-step workflow: generate prop inventory and image prompts."""
+    steps = _WORKFLOWS["canvas_generate_prop_prompt"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

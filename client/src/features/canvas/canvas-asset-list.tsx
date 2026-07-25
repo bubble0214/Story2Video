@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Node } from '@xyflow/react';
 import type { CanvasNodeData, AssetCategory } from '@/types/canvas';
 import { useCanvasParseScript } from '@/hooks/use-canvas-parse-script';
+import { useCanvasPropPrompt } from '@/hooks/use-canvas-prop-prompt';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { tasksApi } from '@/services/tasks';
@@ -158,9 +159,11 @@ export function AssetList({ category }: AssetListProps) {
   const [scriptText, setScriptText] = useState('');
   const [scriptStyle, setScriptStyle] = useState('');
   const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetPickerMode, setAssetPickerMode] = useState<'parse' | 'prop'>('parse');
   const [selectedTask, setSelectedTask] = useState<TaskResp | null>(null);
   const [selectedScenes, setSelectedScenes] = useState<Set<string>>(new Set());
   const { parse, isParsing, isGeneratingImages, generationProgress } = useCanvasParseScript();
+  const { generate: generatePropPrompts, isGenerating: isGeneratingProps } = useCanvasPropPrompt();
   const prevParsing = useRef(false);
 
   // Query script-related tasks for asset selection (show both in-progress and completed)
@@ -252,6 +255,17 @@ export function AssetList({ category }: AssetListProps) {
     const selected = Array.from(selectedScenes).map((i) => scenes[Number(i)]).filter(Boolean);
     if (selected.length === 0) return;
     const combinedScript = selected.map((s) => s.content).join('\n\n');
+
+    if (assetPickerMode === 'prop') {
+      // Prop extraction mode — call the prop prompt API
+      generatePropPrompts({ sceneText: combinedScript, style: scriptStyle });
+      setSelectedTask(null);
+      setSelectedScenes(new Set());
+      setShowAssetPicker(false);
+      return;
+    }
+
+    // Parse mode (default)
     setScriptText(combinedScript);
     setSelectedTask(null);
     setShowAssetPicker(false);
@@ -290,6 +304,17 @@ export function AssetList({ category }: AssetListProps) {
             <Plus className="h-3.5 w-3.5 mr-1" />
             新建{config.label}
           </Button>
+          {category === 'prop' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => { setAssetPickerMode('prop'); setShowAssetPicker(true); }}
+            >
+              <FolderOpen className="h-3.5 w-3.5 mr-1" />
+              从场景提取道具
+            </Button>
+          )}
         </div>
       </div>
 

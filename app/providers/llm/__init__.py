@@ -57,7 +57,7 @@ class LLMFactory:
             )
         resolved_model = model or default_model(key)
         instance = cls(api_key=api_key, model=resolved_model)
-        if base_url is not None:
+        if base_url:
             instance._base_url = base_url.rstrip("/")
         return instance
 

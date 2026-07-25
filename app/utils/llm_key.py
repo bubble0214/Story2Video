@@ -109,8 +109,8 @@ async def resolve_user_llm_key(
     s = await _get_session()
     repo = ApiKeyRepository(s)
     all_keys = await repo.list_by_user(user_id)
-    # Prefer LLM providers (skip music/avatar-specific keys; Coze excluded as Auto due to incompatible LLM interface)
-    llm_providers = {"openai", "claude", "gemini", "deepseek", "qwen", "glm", "custom"}
+    # Prefer LLM providers (skip music/avatar-specific keys)
+    llm_providers = {"openai", "claude", "gemini", "deepseek", "qwen", "glm", "custom", "coze"}
     for key_obj in all_keys:
         if key_obj.provider in llm_providers and key_obj.encrypted_key:
             return (

@@ -10,6 +10,7 @@ import type {
   CozeCreateBotReq,
 } from '@/types/api-key';
 import { preferencesApi } from '@/services/preferences';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,6 +50,12 @@ const PROVIDERS = [
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const [testStatus, setTestStatus] = useState<Record<string, { success: boolean } | 'loading'>>({});
+
+  const updateTestStatus = (id: string, status: { success: boolean } | 'loading') => {
+    setTestStatus((prev) => ({ ...prev, [id]: status }));
+  };
 
   const [newProvider, setNewProvider] = useState('');
   const [newKey, setNewKey] = useState('');
@@ -120,10 +127,13 @@ export default function SettingsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: (data: { provider: string; key?: string; base_url?: string; model_name?: string }) =>
+    mutationFn: (data: { id?: string; provider: string; key?: string; base_url?: string; model_name?: string }) =>
       apiKeysApi.test(data),
-    onSuccess: (resp) => {
+    onSuccess: (resp, variables) => {
       const data = resp.data;
+      if (variables.id) {
+        updateTestStatus(variables.id, { success: data.success });
+      }
       toast({
         title: data.success ? '连接成功' : '连接失败',
         description: data.message,
@@ -438,15 +448,35 @@ export default function SettingsPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          'h-3 w-3 rounded-full shrink-0 transition-colors',
+                          (() => {
+                            const st = testStatus[key.id];
+                            if (!st) return 'bg-muted-foreground/30';
+                            if (st === 'loading') return 'bg-muted-foreground/30 animate-pulse';
+                            return st.success
+                              ? 'bg-green-500'
+                              : 'bg-red-500';
+                          })()
+                        )}
+                      />
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          testMutation.mutate({
-                            provider: key.provider,
-                          })
-                        }
-                        disabled={testMutation.isPending}
+                        onClick={async () => {
+                          updateTestStatus(key.id, 'loading');
+                          try {
+                            const resp = await testMutation.mutateAsync({
+                              id: key.id,
+                              provider: key.provider,
+                            });
+                            updateTestStatus(key.id, { success: resp.data.success });
+                          } catch {
+                            updateTestStatus(key.id, { success: false });
+                          }
+                        }}
+                        disabled={testStatus[key.id] === 'loading'}
                       >
                         <Zap className="h-3.5 w-3.5 mr-1" />
                         测试

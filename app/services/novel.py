@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from uuid import UUID
 
 from app.domain.novel import NovelEntity
 from app.providers.llm.base import BaseLLMProvider
 from app.repositories.novel import NovelRepository
+
+logger = logging.getLogger(__name__)
 
 LLM_SEARCH_SYSTEM_PROMPT = """You are a literary expert and recommendation engine. Your task is to recommend novels based on the user's interests.
 
@@ -19,7 +22,7 @@ Given a set of keywords describing the user's interests, recommend exactly 3 nov
 
 Only recommend novels that actually exist and that you are confident about from your training knowledge. Do not make up novels.
 
-Respond ONLY with a valid JSON array. No markdown formatting, no explanation:
+CRITICAL: Respond ONLY with a valid JSON array and NOTHING else — no markdown, no code fences, no explanation, no headers. Your entire response must be parseable by json.loads(). Example:
 [
   {
     "title": "...",
@@ -27,8 +30,7 @@ Respond ONLY with a valid JSON array. No markdown formatting, no explanation:
     "summary": "...",
     "tags": "...",
     "score": 0.95
-  },
-  ...
+  }
 ]"""
 
 
@@ -73,21 +75,34 @@ class NovelService:
             raise ValueError("LLM provider required for search")
 
         query_text = " ".join(keywords)
-        user_prompt = f"Keywords describing the user's interests: {query_text}\n\nRecommend exactly 3 novels matching these interests."
+        combined_prompt = f"{LLM_SEARCH_SYSTEM_PROMPT}\n\nKeywords: {query_text}"
 
         messages = [
-            {"role": "system", "content": LLM_SEARCH_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": combined_prompt},
         ]
 
         content = await self._llm_provider.chat(messages, temperature=0.8)
+        logger.info("LLM search raw response (first 500): %s", content[:500])
 
-        json_match = re.search(r"\[.*\]", content, re.DOTALL)
-        if not json_match:
-            raise ValueError("LLM did not return a valid recommendation list")
+        # Try multiple JSON extraction strategies
+        json_str = content.strip()
+
+        # Strategy 1: Extract from markdown code block
+        code_match = re.search(r"```(?:json)?\s*\n?(.*?)```", content, re.DOTALL)
+        if code_match:
+            json_str = code_match.group(1).strip()
+        else:
+            # Strategy 2: Find first [ and last ] in the content
+            start = content.find("[")
+            end = content.rfind("]")
+            if start != -1 and end != -1 and end > start:
+                json_str = content[start : end + 1]
+            else:
+                # Strategy 3: Try to extract any valid JSON-like structure
+                json_str = content.strip()
 
         try:
-            recommendations = json.loads(json_match.group())
+            recommendations = json.loads(json_str)
         except json.JSONDecodeError:
             raise ValueError("Failed to parse LLM recommendations as JSON")
 

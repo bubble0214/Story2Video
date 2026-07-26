@@ -53,6 +53,10 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
 
   const novels: SearchResultItem[] = data?.data ?? [];
 
+  // ── Draft persistence ──
+  const draftPersistence = useDraftPersistence({ initialDraftId, collectStepData: () => ({ }) });
+  // collectStepData is replaced below after interactiveGen is created
+
   // ── Set draft title from first search result ──
   const prevNovelsRef = useRef(0);
   useEffect(() => {
@@ -82,10 +86,6 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     custom_prompt: customPrompt.trim(),
     ...(genModel ? { model: genModel } : {}),
   }), [referenceData, customPrompt, genModel]);
-
-  // ── Draft persistence ──
-  const draftPersistence = useDraftPersistence({ initialDraftId, collectStepData: () => ({}) });
-  // collectStepData is replaced below after interactiveGen is created
 
   // ── Interactive generation (depends on draftId) ──
   const interactiveGen = useInteractiveGeneration({

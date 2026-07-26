@@ -18,7 +18,7 @@ with sync_playwright() as p:
     page.goto(f"{BASE_URL}/auth/login")
     page.wait_for_load_state("networkidle")
     page.get_by_label('邮箱').fill('test@test.com')
-    page.get_by_label('密码').fill('1qaz2xsw')
+    page.get_by_label('密码').fill('1qaz2swx')
     page.locator('button[type="submit"]').click()
     time.sleep(4)
     page.wait_for_load_state("networkidle")

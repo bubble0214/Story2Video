@@ -13,7 +13,7 @@ with sync_playwright() as p:
     time.sleep(1)
 
     page.get_by_label('邮箱').fill('test@test.com')
-    page.get_by_label('密码').fill('1qaz2swx')
+    page.get_by_label('密码').fill('1qaz2xsw')
     page.locator('button[type="submit"]').click()
     time.sleep(3)
     page.wait_for_load_state("networkidle")

@@ -14,10 +14,11 @@ export interface UseNovelMutationsOptions {
   volumeOutlineContent: string;
   characterRulesContent: string;
   saveDraft: (step: string, overrides?: Record<string, any>, completed?: boolean) => Promise<void>;
+  onOutlineTitle?: (title: string) => void;
 }
 
 export function useNovelMutations({
-  inputParamsBase, outlineContent, volumeOutlineContent, characterRulesContent, saveDraft,
+  inputParamsBase, outlineContent, volumeOutlineContent, characterRulesContent, saveDraft, onOutlineTitle,
 }: UseNovelMutationsOptions) {
   const setCurrentTaskId = useWorkflowStore((s) => s.setCurrentTaskId);
   const setOutlineContent = useWorkflowStore((s) => s.setOutlineContent);
@@ -98,7 +99,15 @@ export function useNovelMutations({
       if (outlineText?.trim()) {
         setOutlineContent(outlineText);
         toast({ title: '大纲生成完成', description: '请查看并确认大纲内容' });
-        saveDraft('outline', { outlineText });
+        // Extract title from server response
+        const serverTitle = result?.outline_title as string | undefined;
+        if (serverTitle && onOutlineTitle) {
+          onOutlineTitle(serverTitle);
+        }
+        saveDraft('outline', {
+          outlineText,
+          ...(serverTitle ? { title: serverTitle } : {}),
+        });
       } else {
         toast({ title: '大纲生成异常', description: '未获取到有效大纲', variant: 'destructive' });
       }
@@ -110,7 +119,7 @@ export function useNovelMutations({
       toast({ title: '大纲生成失败', description: task.error_message || '未知错误', variant: 'destructive' });
     }
     return null;
-  }, [setOutlineContent, setCurrentTaskId, saveDraft]);
+  }, [setOutlineContent, setCurrentTaskId, saveDraft, onOutlineTitle]);
 
   const handleVolumeOutlineResult = useCallback((task: TaskResp) => {
     if (!task) return;

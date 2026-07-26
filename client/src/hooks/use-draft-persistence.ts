@@ -92,11 +92,18 @@ export function useDraftPersistence({ initialDraftId, collectStepData: _initialC
     if (!id) return;
     try {
       const data = collectStepDataRef.current();
-      await draftsApi.update(id, {
+      const updatePayload: Record<string, any> = {
         current_step: step,
         status: completed ? 'completed' : 'in_progress',
         step_data: { ...data, ...overrides } as any,
-      });
+      };
+      // Pass title through if included in overrides
+      if (overrides.title) {
+        updatePayload.title = overrides.title;
+        delete overrides.title;
+        delete updatePayload.step_data.title;
+      }
+      await draftsApi.update(id, updatePayload as any);
     } catch (err) {
       const e = err as { response?: { data?: { detail?: string } }; message?: string };
       console.error('[DraftPersistence] save failed:', e.response?.data?.detail || e.message);

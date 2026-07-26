@@ -53,6 +53,18 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
 
   const novels: SearchResultItem[] = data?.data ?? [];
 
+  // ── Set draft title from first search result ──
+  const prevNovelsRef = useRef(0);
+  useEffect(() => {
+    if (novels.length > 0 && prevNovelsRef.current === 0 && draftPersistence.draftTitle === '未命名') {
+      const firstTitle = novels[0].title;
+      if (firstTitle) {
+        draftPersistence.setDraftTitle(firstTitle);
+      }
+    }
+    prevNovelsRef.current = novels.length;
+  }, [novels, draftPersistence.draftTitle, draftPersistence.setDraftTitle]);
+
   // ── Reference data helpers ──
   const referenceData = useCallback(() =>
     novels.map((n) => ({
@@ -149,6 +161,7 @@ export function useNovelGeneration({ keywords, selectedModel, initialDraftId }: 
     volumeOutlineContent,
     characterRulesContent,
     saveDraft: draftPersistence.saveDraft,
+    onOutlineTitle: draftPersistence.setDraftTitle,
   });
 
   // ── Poll result effects ──

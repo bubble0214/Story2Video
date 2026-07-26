@@ -96,10 +96,8 @@ export function NovelList({ keywords, selectedModel, initialDraftId }: NovelList
   // ── Auto-extract title from outline content ──
   useEffect(() => {
     if (!outlineContent?.trim()) return;
-    console.log('[NovelList] outlineContent changed, first line:', outlineContent.split('\n')[0]);
-    console.log('[NovelList] current draftTitle:', draftTitle);
+    // Search entire content for # Title (LLM instructed to output # 小说名 as first line)
     const match = outlineContent.match(/^#\s+(.+)$/m);
-    console.log('[NovelList] regex match:', match ? match[1].trim() : 'no match');
     if (match && match[1].trim()) {
       const title = match[1].trim();
       setDraftTitle(title);

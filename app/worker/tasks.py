@@ -253,8 +253,35 @@ async def _step_generate_outline(
 
     content = await provider.chat(messages)
 
+    # Extract title from outline
+    outline_text = content.strip()
+    outline_title = ""
+
+    # Strategy 1: # Title at any line
+    title_match = re.search(r"^#\s+(.+)$", outline_text, re.MULTILINE)
+    if title_match:
+        outline_title = title_match.group(1).strip()
+    else:
+        # Strategy 2: 「《xxx》」 book title in markdown heading or first line
+        bk_match = re.search(r"[#\s]*《([^》]+)》", outline_text)
+        if bk_match:
+            outline_title = f"《{bk_match.group(1)}》"
+        else:
+            # Strategy 3: 「小说名：《xxx》」 pattern
+            name_match = re.search(r"小说[名称名題].*?[:：]\s*(.+)", outline_text)
+            if name_match:
+                outline_title = name_match.group(1).strip().split("\n")[0].strip()
+            else:
+                # Strategy 4: 「# 小说名 xxx」 (no # but starts with 小说名)
+                sn_match = re.search(r"^小说[名称名題][：:\s]*(.+)", outline_text, re.MULTILINE)
+                if sn_match:
+                    outline_title = sn_match.group(1).strip()
+
     # Return the raw text outline — no JSON parsing needed
-    return {"outline_text": content.strip()}
+    result: dict[str, str] = {"outline_text": outline_text}
+    if outline_title:
+        result["outline_title"] = outline_title
+    return result
 
 
 async def _step_generate_volume_outline(

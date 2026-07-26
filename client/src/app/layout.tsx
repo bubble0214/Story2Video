@@ -8,6 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Story2Video',
   description: 'Turn your ideas into novels, lyrics, songs, and videos with AI',
+  icons: { icon: '/favicon.svg' },
 };
 
 export default function RootLayout({

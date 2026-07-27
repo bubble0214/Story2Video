@@ -1638,63 +1638,6 @@ async def _step_generate_lyrics(
 
 
 async def _step_extract_lyrics_core(
-
-
-def _parse_music_style_schemes(content: str) -> list[dict]:
-    """Parse LLM-generated music style text into structured scheme objects."""
-    schemes: list[dict] = []
-    # Split by "### 方案" or "### Scheme" headings
-    blocks = re.split(r"###\s*(?:方案|Scheme).*", content)
-    for block in blocks[1:]:
-        lines = block.strip().split("\n")
-        # Extract name from first non-empty content line (skip separators)
-        name = ""
-        for line in lines:
-            line = line.strip().strip("*#- ")
-            if not line or line.startswith("---"):
-                continue
-            # Remove numbering prefix like "1. ", "**1.** "
-            line = re.sub(r"^\*{0,2}\d+\.?\*{0,2}\s*", "", line)
-            if "风格名称" in line or "genre" in line.lower():
-                # Take the part after the label
-                parts = re.split(r"[：:]\s*", line, maxsplit=1)
-                name = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-            elif not name and line:
-                # If this looks like a title line, use it as name
-                if "BPM" not in line and "Key" not in line and "方案" not in line:
-                    name = re.sub(r"^[【\[]?\s*", "", line).rstrip("】】：: ")
-            if name:
-                break
-        if not name:
-            name = f"方案{len(schemes) + 1}"
-
-        # Use the full block text as prompt/minimax style input
-        prompt = block.strip()
-
-        # Extract reference artists if available
-        artists = ""
-        for line in lines:
-            stripped = line.strip()
-            if re.match(r"^[-*]\s*(?:参考艺术家|参考)[：:]\s*", stripped):
-                artists = re.sub(r"^[-*]\s*(?:参考艺术家|参考)[：:]\s*", "", stripped)
-            elif "参考艺术家" in stripped or "参考歌曲" in stripped or "Reference" in stripped:
-                _, _, val = stripped.partition("：")
-                if not val:
-                    _, _, val = stripped.partition(":")
-                if val.strip():
-                    artists = val.strip()
-
-        schemes.append({
-            "name": name,
-            "prompt": prompt,
-            "explanation": "",
-            "structure": "",
-            "artists": artists,
-        })
-    return schemes
-
-
-async def _step_generate_music_style(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
     """Extract song core elements (theme, mood, imagery, etc.) from a script."""
@@ -1714,6 +1657,73 @@ async def _step_generate_music_style(
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
     return {"lyrics_core_content": content}
+
+
+def _parse_music_style_schemes(content: str) -> list[dict]:
+    """Parse LLM-generated music style text into structured scheme objects."""
+    schemes: list[dict] = []
+    # Split by "### 方案" or "### Scheme" headings
+    blocks = re.split(r"###\s*(?:方案|Scheme).*", content)
+    for block in blocks[1:]:
+        lines = block.strip().split("\n")
+        # Extract name from first non-empty content line (skip separators)
+        name = ""
+
+        # Look for style name on the line immediately after "风格名称" label
+        # Format: **1. 风格名称与 genre**  \n 「雨夜信笺」- 独立民谣 / 钢琴民谣
+        for i, line in enumerate(lines):
+            stripped = line.strip().strip("*#- ")
+            if "风格名称" in stripped or "genre" in stripped.lower():
+                # Check same line for colon with name
+                parts = re.split(r"[：:]\s*", stripped, maxsplit=1)
+                if len(parts) > 1 and parts[1].strip():
+                    name = parts[1].strip()
+                else:
+                    # Name is on the next line — look for 「...」 pattern or first meaningful line
+                    for j in range(i + 1, min(i + 3, len(lines))):
+                        next_line = lines[j].strip().strip("*#- ")
+                        if not next_line or next_line.startswith("---"):
+                            continue
+                        # Match 「name」 - genre or similar
+                        name = next_line
+                    break  # Don't fall through to generic line check
+
+        if not name:
+            # Fallback: use heading context (from the ### split itself) or block title
+            for line in lines:
+                line = line.strip().strip("*#- ")
+                if not line or line.startswith("---"):
+                    continue
+                line = re.sub(r"^\*{0,2}\d+\.?\*{0,2}\s*", "", line)
+                if "BPM" not in line and "Key" not in line and "方案" not in line and "综合" not in line:
+                    name = line
+                    break
+        if not name:
+            name = f"方案{len(schemes) + 1}"
+
+        # Use the full block text as prompt/minimax style input
+        prompt = block.strip()
+
+        # Extract reference artists if available
+        artists = ""
+        for line in lines:
+            stripped = line.strip()
+            # Match "**7. 参考艺术家/歌曲**" then take next line content
+            if "参考艺术家" in stripped or "参考歌曲" in stripped:
+                for j in range(lines.index(line) + 1, min(lines.index(line) + 3, len(lines))):
+                    artist_line = lines[j].strip().lstrip("-* ")
+                    if artist_line:
+                        artists = artist_line
+                        break
+
+        schemes.append({
+            "name": name,
+            "prompt": prompt,
+            "explanation": "",
+            "structure": "",
+            "artists": artists,
+        })
+    return schemes
 
 
 async def _step_generate_music_style(

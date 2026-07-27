@@ -129,6 +129,8 @@ export function LyricsPage({ initialDraftId }: Props) {
             generatedLyrics,
             stylePrompt,
             musicStyle,
+            musicStyleSchemes,
+            selectedSchemeIndex,
             musicStyleFeedback,
             genModel: selectedModel,
             activeTab,
@@ -158,13 +160,15 @@ export function LyricsPage({ initialDraftId }: Props) {
           generatedLyrics,
           stylePrompt,
           musicStyle,
+          musicStyleSchemes,
+          selectedSchemeIndex,
           musicStyleFeedback,
           genModel: selectedModel,
           activeTab,
         } as unknown as DraftStepData,
       });
     } catch { /* silent */ }
-  }, [activeTab, scriptContent, scriptSource, extractedCore, lyricsStructure, generatedLyrics, stylePrompt, musicStyle, musicStyleFeedback, selectedModel]);
+  }, [activeTab, scriptContent, scriptSource, extractedCore, lyricsStructure, generatedLyrics, stylePrompt, musicStyle, musicStyleSchemes, selectedSchemeIndex, musicStyleFeedback, selectedModel]);
 
   // Save on tab change
   const handleTabChange = (tab: string) => {

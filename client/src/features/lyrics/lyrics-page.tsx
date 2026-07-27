@@ -101,6 +101,8 @@ export function LyricsPage({ initialDraftId }: Props) {
         if (sd.generatedLyrics) setGeneratedLyrics(sd.generatedLyrics as string);
         if (sd.stylePrompt) setStylePrompt(sd.stylePrompt as string);
         if (sd.musicStyle) setMusicStyle(sd.musicStyle as string);
+        if (sd.musicStyleSchemes) setMusicStyleSchemes(sd.musicStyleSchemes as any);
+        if (sd.selectedSchemeIndex !== undefined) setSelectedSchemeIndex(sd.selectedSchemeIndex as number);
         if (sd.musicStyleFeedback) setMusicStyleFeedback(sd.musicStyleFeedback as string);
         if (sd.genModel) setSelectedModel(sd.genModel as string);
         setActiveTab(sd.activeTab as string || 'structure');
@@ -373,7 +375,7 @@ export function LyricsPage({ initialDraftId }: Props) {
           const schemes = (data as any).result?.music_style_schemes;
           if (schemes) setMusicStyleSchemes(schemes);
           setTimeout(saveImmediate, 0);
-          toast({ title: '风格方案生成完成' });
+          toast({ title: '风格方案生成完成', description: '请选择一种风格方案，然后点击"生成歌曲"按钮' });
         } else if (data.status === 'FAILED') {
           clearInterval(interval);
           setMusicStyleTaskId(null);

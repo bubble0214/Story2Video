@@ -108,6 +108,11 @@ celery_app.conf.update(
             "routing_key": "lyrics_generation",
             "priority": 6,
         },
+        "workflow_plan_lyrics_structure": {
+            "queue": "lyrics_generation",
+            "routing_key": "lyrics_generation",
+            "priority": 6,
+        },
         "workflow_generate_music_style": {
             "queue": "lyrics_generation",
             "routing_key": "lyrics_generation",
@@ -156,6 +161,7 @@ celery_app.conf.update(
         "workflow_generate_script": {"rate_limit": "5/m"},
         "workflow_generate_lyrics": {"rate_limit": "10/m"},
         "workflow_extract_lyrics_core": {"rate_limit": "10/m"},
+        "workflow_plan_lyrics_structure": {"rate_limit": "10/m"},
         "workflow_generate_music_style": {"rate_limit": "10/m"},
         "workflow_generate_song": {"rate_limit": "5/m"},
         "workflow_generate_image": {"rate_limit": "5/m"},

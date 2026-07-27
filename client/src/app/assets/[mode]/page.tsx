@@ -58,7 +58,7 @@ function extractTitle(task: TaskResp): string {
     const match = lyricsContent.match(/【歌曲名称】(.+?)(?:\n|$)/);
     if (match) return match[1].trim();
   }
-  if (task.workflow_type === 'generate_song') {
+  if (task.workflow_type === 'generate_song' || task.workflow_type === 'generate_lyrics') {
     return '生成的歌曲';
   }
   return (task.result?.title as string) ?? task.workflow_type.replace('generate_', '');
@@ -77,15 +77,34 @@ export default function AssetCategoryPage() {
   const workflowType = WORKFLOW_MODE_TO_TYPE[mode as keyof typeof WORKFLOW_MODE_TO_TYPE];
   const queryClient = useQueryClient();
 
+  const workflowTypes = useMemo(() => {
+    if (mode === 'song') return ['generate_song', 'generate_lyrics'];
+    if (workflowType) return [workflowType];
+    return [];
+  }, [mode, workflowType]);
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['asset-category', mode],
     queryFn: async () => {
-      const response = await tasksApi.list({ workflow_type: workflowType, limit: 50 });
-      return response.data;
+      if (workflowTypes.length === 0) return { items: [], total: 0 };
+      // For song mode, fetch multiple workflow types
+      const promises = workflowTypes.map((wt) =>
+        tasksApi.list({ workflow_type: wt, limit: 50 }).then((r) => r.data.items)
+      );
+      const results = await Promise.all(promises);
+      const allItems = results.flat().filter((t: TaskResp) => t.status === 'SUCCESS');
+      // Deduplicate by id
+      const seen = new Set<string>();
+      const unique: TaskResp[] = [];
+      for (const item of allItems) {
+        if (!seen.has(item.id)) { seen.add(item.id); unique.push(item); }
+      }
+      unique.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return { items: unique, total: unique.length };
     },
   });
 
-  const successItems = data?.items.filter((t: TaskResp) => t.status === 'SUCCESS' && t.workflow_type === workflowType) ?? [];
+  const successItems = data?.items ?? [];
 
   // ── Drafts for all modes ──
   const { data: draftsData } = useQuery({

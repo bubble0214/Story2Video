@@ -134,7 +134,7 @@ export function LyricsPage({ initialDraftId }: Props) {
             activeTab,
           };
           const { data: draft } = await draftsApi.upsert({
-            workflow_type: 'lyrics',
+            workflow_type: 'song',
             title: '歌词草稿',
             current_step: activeTab,
             step_data: stepData as unknown as DraftStepData,

@@ -1658,6 +1658,52 @@ async def _step_extract_lyrics_core(
     return {"lyrics_core_content": content}
 
 
+async def _step_generate_music_style(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate music style schemes based on lyrics and core analysis."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    lyrics_content = input_params.get("lyrics_content", "")
+    core_analysis = input_params.get("core_analysis", "")
+    user_feedback = input_params.get("user_feedback", "")
+
+    if not lyrics_content:
+        raise ValueError("No lyrics content provided for music style generation")
+
+    system_prompt = (
+        "You are a professional music producer and composer. Based on the given lyrics and core analysis, "
+        "generate 2-3 distinct music style schemes. Each scheme should include:\n"
+        "1. Style name and genre\n"
+        "2. Tempo (BPM) and key\n"
+        "3. Instrumentation\n"
+        "4. Vocal style\n"
+        "5. Mood and atmosphere description\n"
+        "6. Production techniques\n"
+        "7. Reference artists or songs (if applicable)\n\n"
+        "Provide a detailed analysis of how each style complements the lyrics' theme and emotion."
+    )
+
+    user_message = f"Lyrics:\n{lyrics_content}\n"
+    if core_analysis:
+        user_message += f"\nCore Analysis:\n{core_analysis}\n"
+    if user_feedback:
+        user_message += f"\nUser Feedback / Preferences:\n{user_feedback}\n"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"music_style_content": content}
+
+
 async def _step_plan_lyrics_structure(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
@@ -2168,6 +2214,7 @@ _STEP_REGISTRY = {
     "generate_lyrics": _step_generate_lyrics,
     "extract_lyrics_core": _step_extract_lyrics_core,
     "plan_lyrics_structure": _step_plan_lyrics_structure,
+    "generate_music_style": _step_generate_music_style,
     "generate_song": _step_generate_song,
     "generate_image": _step_generate_image,
     "canvas_generate_image": _step_canvas_generate_image,
@@ -2198,6 +2245,7 @@ _STEP_WEIGHTS = {
     "generate_lyrics": 15.0,
     "extract_lyrics_core": 10.0,
     "plan_lyrics_structure": 10.0,
+    "generate_music_style": 10.0,
     "generate_song": 10.0,
     "generate_image": 5.0,
     "canvas_generate_image": 5.0,
@@ -2232,6 +2280,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_lyrics": ["search_reference_novels", "generate_lyrics"],
     "extract_lyrics_core": ["extract_lyrics_core"],
     "plan_lyrics_structure": ["plan_lyrics_structure"],
+    "generate_music_style": ["generate_music_style"],
     "generate_song": ["generate_lyrics", "generate_song"],
     "generate_image": ["generate_song", "generate_image"],
     "canvas_generate_image": ["canvas_generate_image"],
@@ -2273,6 +2322,7 @@ _STEP_LABELS: dict[str, str] = {
     "generate_lyrics": "生成歌词",
     "extract_lyrics_core": "提取歌曲内核",
     "plan_lyrics_structure": "规划歌词结构",
+    "generate_music_style": "生成谱曲风格",
     "generate_song": "生成歌曲",
     "generate_image": "生成图片",
     "canvas_generate_image": "画布图片生成",
@@ -2463,6 +2513,18 @@ def workflow_plan_lyrics_structure(task_id: str, user_id: str, input_params: dic
 def workflow_generate_song(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: generate lyrics → generate song."""
     steps = _WORKFLOWS["generate_song"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_generate_music_style",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_generate_music_style(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Step: generate music style schemes from lyrics/core analysis."""
+    steps = _WORKFLOWS["generate_music_style"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

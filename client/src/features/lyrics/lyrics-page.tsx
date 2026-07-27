@@ -903,7 +903,9 @@ export function LyricsPage({ initialDraftId }: Props) {
                   <Music className="h-5 w-5 text-primary" />
                   <h3 className="font-semibold text-base">选择风格方案</h3>
                 </div>
-                <p className="text-sm text-muted-foreground">请点击选择一种方案，然后生成歌曲</p>
+                <div className="bg-primary/10 border border-primary/30 rounded-md p-3 text-sm text-primary-foreground/90">
+                  <p className="font-medium">请选择一种风格方案，然后点击"生成歌曲"按钮</p>
+                </div>
 
                 {/* Scheme cards */}
                 <div className="grid gap-4">

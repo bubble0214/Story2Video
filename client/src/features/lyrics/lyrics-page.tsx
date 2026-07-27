@@ -5,14 +5,14 @@ import { useMutation } from '@tanstack/react-query';
 import { tasksApi } from '@/services/tasks';
 import { draftsApi } from '@/services/drafts';
 import type { DraftStepData } from '@/types/draft';
-import type { WorkflowType } from '@/types/task';
+import type { TaskResp, WorkflowType } from '@/types/task';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ModelSelector } from '@/components/model-selector';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, FileText, Upload, BookOpen, Sparkles, ChevronRight, AlertCircle, GitBranch, Music } from 'lucide-react';
+import { Loader2, FileText, Upload, BookOpen, Sparkles, ChevronRight, AlertCircle, GitBranch, Music, X } from 'lucide-react';
 
 const LYRICS_TABS = [
   { value: 'structure', label: '歌词结构规划', icon: GitBranch },
@@ -32,6 +32,11 @@ export function LyricsPage({ initialDraftId }: Props) {
   // Script source: upload or asset library
   const [scriptContent, setScriptContent] = useState('');
   const [scriptSource, setScriptSource] = useState<'upload' | 'asset' | ''>('');
+
+  // Asset library modal
+  const [showAssetModal, setShowAssetModal] = useState(false);
+  const [assetList, setAssetList] = useState<TaskResp[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
 
   // Extracted core
   const [extractedCore, setExtractedCore] = useState('');
@@ -441,16 +446,31 @@ export function LyricsPage({ initialDraftId }: Props) {
     e.target.value = '';
   }, []);
 
-  // ── Use asset script ──
-  const handleUseAssetScript = useCallback(() => {
-    if (novelContent) {
-      setScriptContent(novelContent);
-      setScriptSource('asset');
-      toast({ title: '已使用资产库中的内容' });
-    } else {
-      toast({ title: '暂无可用资产', description: '请先上传剧本文件', variant: 'destructive' });
+  // ── Asset library: fetch completed generate_script tasks ──
+  const fetchAssets = useCallback(async () => {
+    setLoadingAssets(true);
+    setShowAssetModal(true);
+    try {
+      const { data } = await tasksApi.list({ limit: 50, workflow_type: 'generate_script' });
+      setAssetList((data as any).items?.filter((t: TaskResp) => t.status === 'SUCCESS') ?? []);
+    } catch {
+      toast({ title: '获取素材列表失败', variant: 'destructive' });
+    } finally {
+      setLoadingAssets(false);
     }
-  }, [novelContent]);
+  }, []);
+
+  const selectAsset = useCallback((task: TaskResp) => {
+    const content = (task.result?.script_content as string) || '';
+    if (content) {
+      setScriptContent(content);
+      setScriptSource('asset');
+      toast({ title: '已从资产库加载剧本' });
+    } else {
+      toast({ title: '所选任务无可用内容', variant: 'destructive' });
+    }
+    setShowAssetModal(false);
+  }, []);
 
   // ── Tab reachability ──
   const canGoToGenerate = !!lyricsStructure && !!scriptContent;
@@ -513,13 +533,13 @@ export function LyricsPage({ initialDraftId }: Props) {
 
               {/* Script upload area */}
               {!scriptContent ? (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div
-                    className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors flex flex-col items-center justify-center min-h-[140px]"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                    <p className="text-sm text-muted-foreground">点击上传剧本文件 (.txt)</p>
+                    <p className="text-sm text-muted-foreground">上传剧本文件 (.txt)</p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -528,12 +548,13 @@ export function LyricsPage({ initialDraftId }: Props) {
                       onChange={handleFileUpload}
                     />
                   </div>
-                  {novelContent && (
-                    <Button variant="outline" className="w-full" onClick={handleUseAssetScript}>
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      从资产库中选择
-                    </Button>
-                  )}
+                  <div
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors flex flex-col items-center justify-center min-h-[140px]"
+                    onClick={fetchAssets}
+                  >
+                    <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">从资产库中选择</p>
+                  </div>
                 </div>
               ) : (
                 <Card className="bg-muted/50">
@@ -1014,6 +1035,55 @@ export function LyricsPage({ initialDraftId }: Props) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ── Asset selection modal ── */}
+      {showAssetModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowAssetModal(false)}>
+          <div className="bg-background rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">选择剧本素材</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowAssetModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {loadingAssets ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : assetList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">暂无已完成的剧本任务</p>
+            ) : (
+              <div className="space-y-2">
+                {assetList.map((task) => (
+                  <Card
+                    key={task.id}
+                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => selectAsset(task)}
+                  >
+                    <CardContent className="pt-3 pb-3 flex items-start gap-3">
+                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {(task.result?.title as string) || '未命名剧本'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(task.created_at).toLocaleDateString('zh-CN')}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {(task.result?.script_content as string || '').slice(0, 100)}
+                          {(task.result?.script_content as string || '').length > 100 ? '...' : ''}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

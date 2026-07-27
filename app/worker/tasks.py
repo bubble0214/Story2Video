@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.providers.llm import LLMFactory
+from app.providers.music import MusicFactory
 from app.providers.prompt import ExtractLyricsCorePromptBuilder, LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
 from app.providers.prompt.novel import (
     ExtractLyricsCorePromptBuilder,
@@ -24,7 +25,7 @@ from app.providers.prompt.novel import (
 )
 from app.repositories.novel import NovelRepository
 from app.repositories.task import TaskRepository
-from app.utils.llm_key import resolve_user_llm_key
+from app.utils.llm_key import get_user_api_key_from_db, resolve_user_llm_key
 
 logger = logging.getLogger(__name__)
 
@@ -1726,19 +1727,30 @@ async def _step_plan_lyrics_structure(
     return {"lyrics_structure_content": content}
 
 
-async def _step_generate_song(input_params: dict, context: dict) -> dict:
-    """Generate a song / audio from lyrics.  Placeholder for TTS/MusicGen."""
+async def _step_generate_song(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate a real song via MiniMax music-2.6 API."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve music API key")
+
     lyrics = context.get("lyrics_content", "")
     if not lyrics:
         raise ValueError("No lyrics content provided for song generation")
 
-    # TODO: Replace with actual TTS or music-generation API call.
-    return {
-        "song_placeholder": True,
-        "lyrics_length": len(lyrics),
-        "message": "Song generation not yet wired to a TTS/music service. "
-        "Lyrics are available for downstream processing.",
-    }
+    style = input_params.get("music_style_content", "")
+
+    # Look up the user's minimax API key
+    api_key = await get_user_api_key_from_db(user_id, "minimax")
+    if not api_key:
+        raise ValueError(
+            "No MiniMax API key found. Please go to Settings and add your MiniMax API key."
+        )
+
+    provider = MusicFactory.create("minimax", api_key)
+    audio_url = await provider.generate_song(lyrics=lyrics, style=style)
+
+    return {"song_audio_url": audio_url}
 
 
 async def _step_generate_image(input_params: dict, context: dict) -> dict:

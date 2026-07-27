@@ -758,7 +758,7 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
           title: `阶段性诊断完成（前${completedCount}场）`,
           description: modified && Object.keys(modified).length > 0
             ? `发现 ${Object.keys(modified).length} 处修改建议`
-            : '未发现需修改的问题',
+            : '诊断报告中有问题描述但未提供自动修改版本，请查看诊断详情',
         });
       }
       setPeriodicDiagnosisTaskId(null);
@@ -2151,6 +2151,15 @@ export function ScriptPage({ initialDraftId }: { initialDraftId?: string }) {
                             </Button>
                             <Button size="sm" variant="ghost" className="text-xs h-7" onClick={handleDismissPeriodicDiagnosis}>
                               忽略
+                            </Button>
+                          </div>
+                        ) : frequentDiagnosisResult.diagnosis.length > 20 ? (
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-xs text-amber-700 dark:text-amber-300">
+                              诊断报告发现潜在问题，但未提供自动修改版本
+                            </span>
+                            <Button size="sm" variant="ghost" className="text-xs h-7" onClick={handleDismissPeriodicDiagnosis}>
+                              已查看，关闭
                             </Button>
                           </div>
                         ) : (

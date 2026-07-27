@@ -26,6 +26,7 @@ class TaskService:
         "generate_storyboard": "workflow_generate_storyboard",
         "generate_lyrics": "workflow_generate_lyrics",
         "extract_lyrics_core": "workflow_extract_lyrics_core",
+        "plan_lyrics_structure": "workflow_plan_lyrics_structure",
         "generate_song": "workflow_generate_song",
         "generate_music_style": "workflow_generate_music_style",
         "generate_image": "workflow_generate_image",

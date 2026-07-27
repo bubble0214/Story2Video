@@ -227,7 +227,7 @@ export function LyricsPage({ initialDraftId }: Props) {
   const structureMutation = useMutation({
     mutationFn: async () => {
       const { data } = await tasksApi.create({
-        workflow_type: 'plan_lyrics_structure' as WorkflowType,
+        workflow_type: 'plan_lyrics_structure',
         input_params: {
           script_content: scriptContent,
           core_analysis: extractedCore,

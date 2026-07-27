@@ -16,7 +16,12 @@ from app.core.celery import celery_app
 from app.core.config import settings
 from app.providers.llm import LLMFactory
 from app.providers.prompt import ExtractLyricsCorePromptBuilder, LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
-from app.providers.prompt.novel import build_chapter_messages
+from app.providers.prompt.novel import (
+    ExtractLyricsCorePromptBuilder,
+    LyricsStructurePromptBuilder,
+    MusicStylePromptBuilder,
+    build_chapter_messages,
+)
 from app.repositories.novel import NovelRepository
 from app.repositories.task import TaskRepository
 from app.utils.llm_key import resolve_user_llm_key
@@ -1653,6 +1658,28 @@ async def _step_extract_lyrics_core(
     return {"lyrics_core_content": content}
 
 
+async def _step_plan_lyrics_structure(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Plan lyrics structure (verse/chorus/bridge arrangement) based on core analysis."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve LLM API key")
+
+    core_analysis = input_params.get("core_analysis", "")
+    if not core_analysis:
+        raise ValueError("No core analysis provided for lyrics structure planning")
+
+    builder = LyricsStructurePromptBuilder()
+    messages = builder.build(core_analysis=core_analysis)
+
+    llm_key, llm_provider, base_url, model = await resolve_user_llm_key(user_id, input_params)
+    if llm_provider == "custom":
+        llm_provider = "openai"
+    provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
+    content = await provider.chat(messages)
+    return {"lyrics_structure_content": content}
+
+
 async def _step_generate_song(input_params: dict, context: dict) -> dict:
     """Generate a song / audio from lyrics.  Placeholder for TTS/MusicGen."""
     lyrics = context.get("lyrics_content", "")
@@ -2140,6 +2167,7 @@ _STEP_REGISTRY = {
     "generate_storyboard": _step_generate_storyboard,
     "generate_lyrics": _step_generate_lyrics,
     "extract_lyrics_core": _step_extract_lyrics_core,
+    "plan_lyrics_structure": _step_plan_lyrics_structure,
     "generate_song": _step_generate_song,
     "generate_image": _step_generate_image,
     "canvas_generate_image": _step_canvas_generate_image,
@@ -2169,6 +2197,7 @@ _STEP_WEIGHTS = {
     "generate_storyboard": 10.0,
     "generate_lyrics": 15.0,
     "extract_lyrics_core": 10.0,
+    "plan_lyrics_structure": 10.0,
     "generate_song": 10.0,
     "generate_image": 5.0,
     "canvas_generate_image": 5.0,
@@ -2202,6 +2231,7 @@ _WORKFLOWS: dict[str, list[str]] = {
     "generate_storyboard": ["generate_video_tweet", "generate_storyboard"],
     "generate_lyrics": ["search_reference_novels", "generate_lyrics"],
     "extract_lyrics_core": ["extract_lyrics_core"],
+    "plan_lyrics_structure": ["plan_lyrics_structure"],
     "generate_song": ["generate_lyrics", "generate_song"],
     "generate_image": ["generate_song", "generate_image"],
     "canvas_generate_image": ["canvas_generate_image"],
@@ -2242,6 +2272,7 @@ _STEP_LABELS: dict[str, str] = {
     "generate_storyboard": "生成分镜",
     "generate_lyrics": "生成歌词",
     "extract_lyrics_core": "提取歌曲内核",
+    "plan_lyrics_structure": "规划歌词结构",
     "generate_song": "生成歌曲",
     "generate_image": "生成图片",
     "canvas_generate_image": "画布图片生成",
@@ -2408,6 +2439,18 @@ def workflow_generate_lyrics(task_id: str, user_id: str, input_params: dict) -> 
 def workflow_extract_lyrics_core(task_id: str, user_id: str, input_params: dict) -> dict:
     """Workflow: extract song core elements from script content."""
     steps = _WORKFLOWS["extract_lyrics_core"]
+    return _run_workflow(task_id, user_id, steps, input_params)
+
+
+@celery_app.task(
+    name="workflow_plan_lyrics_structure",
+    acks_late=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def workflow_plan_lyrics_structure(task_id: str, user_id: str, input_params: dict) -> dict:
+    """Workflow: plan lyrics structure based on core analysis."""
+    steps = _WORKFLOWS["plan_lyrics_structure"]
     return _run_workflow(task_id, user_id, steps, input_params)
 
 

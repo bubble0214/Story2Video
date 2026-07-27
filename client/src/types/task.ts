@@ -14,6 +14,7 @@ export type WorkflowType =
   | 'generate_storyboard'
   | 'generate_lyrics'
   | 'extract_lyrics_core'
+  | 'plan_lyrics_structure'
   | 'generate_song'
   | 'generate_music_style'
   | 'generate_image'

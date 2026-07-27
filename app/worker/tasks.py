@@ -1643,55 +1643,52 @@ async def _step_extract_lyrics_core(
 def _parse_music_style_schemes(content: str) -> list[dict]:
     """Parse LLM-generated music style text into structured scheme objects."""
     schemes: list[dict] = []
-    # Split by "### 方案" or "### Scheme" headings (any suffix after the heading keyword)
+    # Split by "### 方案" or "### Scheme" headings
     blocks = re.split(r"###\s*(?:方案|Scheme).*", content)
     for block in blocks[1:]:
         lines = block.strip().split("\n")
-        # Extract name from first non-empty line
+        # Extract name from first non-empty content line (skip separators)
         name = ""
         for line in lines:
-            line = line.strip()
-            if not line:
+            line = line.strip().strip("*#- ")
+            if not line or line.startswith("---"):
                 continue
-            name = re.sub(r"^[【\[]?\s*", "", line).rstrip("】】：: ")
-            break
+            # Remove numbering prefix like "1. ", "**1.** "
+            line = re.sub(r"^\*{0,2}\d+\.?\*{0,2}\s*", "", line)
+            if "风格名称" in line or "genre" in line.lower():
+                # Take the part after the label
+                parts = re.split(r"[：:]\s*", line, maxsplit=1)
+                name = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+            elif not name and line:
+                # If this looks like a title line, use it as name
+                if "BPM" not in line and "Key" not in line and "方案" not in line:
+                    name = re.sub(r"^[【\[]?\s*", "", line).rstrip("】】：: ")
+            if name:
+                break
         if not name:
             name = f"方案{len(schemes) + 1}"
 
-        # Extract fields - use independent checks, not elif
-        prompt = ""
-        explanation = ""
-        structure = ""
+        # Use the full block text as prompt/minimax style input
+        prompt = block.strip()
+
+        # Extract reference artists if available
         artists = ""
         for line in lines:
             stripped = line.strip()
-            lower = stripped.lower()
-            if re.match(r"^[-*]\s*(?:Style\s*)?Prompt[：:]\s*", stripped, re.I):
-                prompt = re.sub(r"^[-*]\s*(?:Style\s*)?Prompt[：:]\s*", "", stripped, flags=re.I)
-            if re.match(r"^[-*]\s*(?:Explanation|组合解释|解释|分析)[：:]\s*", stripped, re.I):
-                explanation = re.sub(r"^[-*]\s*(?:Explanation|组合解释|解释|分析)[：:]\s*", "", stripped, flags=re.I)
-            if re.match(r"^[-*]\s*(?:Structure|结构建议|结构)[：:]\s*", stripped, re.I):
-                structure = re.sub(r"^[-*]\s*(?:Structure|结构建议|结构)[：:]\s*", "", stripped, flags=re.I)
-            if re.match(r"^[-*]\s*(?:Reference Artists|参考艺术家|参考)[：:]\s*", stripped, re.I):
-                artists = re.sub(r"^[-*]\s*(?:Reference Artists|参考艺术家|参考)[：:]\s*", "", stripped, flags=re.I)
-            # Also try Chinese-style bullet labels like "Prompt：xxx"
-            if re.match(r"^Prompt[：:]\s*", stripped, re.I) and not prompt:
-                prompt = re.sub(r"^Prompt[：:]\s*", "", stripped, flags=re.I)
-            if re.match(r"^(?:组合解释|解释|分析)[：:]\s*", stripped) and not explanation:
-                explanation = re.sub(r"^(?:组合解释|解释|分析)[：:]\s*", "", stripped)
-            if re.match(r"^(?:结构建议|结构)[：:]\s*", stripped) and not structure:
-                structure = re.sub(r"^(?:结构建议|结构)[：:]\s*", "", stripped)
-            if re.match(r"^(?:参考艺术家|参考)[：:]\s*", stripped) and not artists:
-                artists = re.sub(r"^(?:参考艺术家|参考)[：:]\s*", "", stripped)
+            if re.match(r"^[-*]\s*(?:参考艺术家|参考)[：:]\s*", stripped):
+                artists = re.sub(r"^[-*]\s*(?:参考艺术家|参考)[：:]\s*", "", stripped)
+            elif "参考艺术家" in stripped or "参考歌曲" in stripped or "Reference" in stripped:
+                _, _, val = stripped.partition("：")
+                if not val:
+                    _, _, val = stripped.partition(":")
+                if val.strip():
+                    artists = val.strip()
 
-        if not prompt:
-            full_text = "\n".join(lines)
-            prompt = full_text[:300]
         schemes.append({
             "name": name,
             "prompt": prompt,
-            "explanation": explanation,
-            "structure": structure,
+            "explanation": "",
+            "structure": "",
             "artists": artists,
         })
     return schemes

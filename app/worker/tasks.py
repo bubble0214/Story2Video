@@ -1644,7 +1644,7 @@ def _parse_music_style_schemes(content: str) -> list[dict]:
     """Parse LLM-generated music style text into structured scheme objects."""
     schemes: list[dict] = []
     # Split by "### 方案" or "### Scheme" headings (any suffix after the heading keyword)
-    blocks = re.split(r"###\s*(?:方案|Scheme)\s*\S*", content)
+    blocks = re.split(r"###\s*(?:方案|Scheme).*", content)
     for block in blocks[1:]:
         lines = block.strip().split("\n")
         # Extract name from first non-empty line

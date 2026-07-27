@@ -1638,6 +1638,66 @@ async def _step_generate_lyrics(
 
 
 async def _step_extract_lyrics_core(
+
+
+def _parse_music_style_schemes(content: str) -> list[dict]:
+    """Parse LLM-generated music style text into structured scheme objects."""
+    schemes: list[dict] = []
+    # Split by "### 方案" or "### Scheme" headings (any suffix after the heading keyword)
+    blocks = re.split(r"###\s*(?:方案|Scheme)\s*\S*", content)
+    for block in blocks[1:]:
+        lines = block.strip().split("\n")
+        # Extract name from first non-empty line
+        name = ""
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            name = re.sub(r"^[【\[]?\s*", "", line).rstrip("】】：: ")
+            break
+        if not name:
+            name = f"方案{len(schemes) + 1}"
+
+        # Extract fields - use independent checks, not elif
+        prompt = ""
+        explanation = ""
+        structure = ""
+        artists = ""
+        for line in lines:
+            stripped = line.strip()
+            lower = stripped.lower()
+            if re.match(r"^[-*]\s*(?:Style\s*)?Prompt[：:]\s*", stripped, re.I):
+                prompt = re.sub(r"^[-*]\s*(?:Style\s*)?Prompt[：:]\s*", "", stripped, flags=re.I)
+            if re.match(r"^[-*]\s*(?:Explanation|组合解释|解释|分析)[：:]\s*", stripped, re.I):
+                explanation = re.sub(r"^[-*]\s*(?:Explanation|组合解释|解释|分析)[：:]\s*", "", stripped, flags=re.I)
+            if re.match(r"^[-*]\s*(?:Structure|结构建议|结构)[：:]\s*", stripped, re.I):
+                structure = re.sub(r"^[-*]\s*(?:Structure|结构建议|结构)[：:]\s*", "", stripped, flags=re.I)
+            if re.match(r"^[-*]\s*(?:Reference Artists|参考艺术家|参考)[：:]\s*", stripped, re.I):
+                artists = re.sub(r"^[-*]\s*(?:Reference Artists|参考艺术家|参考)[：:]\s*", "", stripped, flags=re.I)
+            # Also try Chinese-style bullet labels like "Prompt：xxx"
+            if re.match(r"^Prompt[：:]\s*", stripped, re.I) and not prompt:
+                prompt = re.sub(r"^Prompt[：:]\s*", "", stripped, flags=re.I)
+            if re.match(r"^(?:组合解释|解释|分析)[：:]\s*", stripped) and not explanation:
+                explanation = re.sub(r"^(?:组合解释|解释|分析)[：:]\s*", "", stripped)
+            if re.match(r"^(?:结构建议|结构)[：:]\s*", stripped) and not structure:
+                structure = re.sub(r"^(?:结构建议|结构)[：:]\s*", "", stripped)
+            if re.match(r"^(?:参考艺术家|参考)[：:]\s*", stripped) and not artists:
+                artists = re.sub(r"^(?:参考艺术家|参考)[：:]\s*", "", stripped)
+
+        if not prompt:
+            full_text = "\n".join(lines)
+            prompt = full_text[:300]
+        schemes.append({
+            "name": name,
+            "prompt": prompt,
+            "explanation": explanation,
+            "structure": structure,
+            "artists": artists,
+        })
+    return schemes
+
+
+async def _step_generate_music_style(
     input_params: dict, context: dict, user_id: UUID | None = None,
 ) -> dict:
     """Extract song core elements (theme, mood, imagery, etc.) from a script."""
@@ -1675,15 +1735,17 @@ async def _step_generate_music_style(
 
     system_prompt = (
         "You are a professional music producer and composer. Based on the given lyrics and core analysis, "
-        "generate 2-3 distinct music style schemes. Each scheme should include:\n"
-        "1. Style name and genre\n"
-        "2. Tempo (BPM) and key\n"
-        "3. Instrumentation\n"
-        "4. Vocal style\n"
-        "5. Mood and atmosphere description\n"
-        "6. Production techniques\n"
-        "7. Reference artists or songs (if applicable)\n\n"
-        "Provide a detailed analysis of how each style complements the lyrics' theme and emotion."
+        "generate 2-3 distinct music style schemes.\n\n"
+        "IMPORTANT: Format each scheme using the following markdown template:\n"
+        "### 方案1\n"
+        "Style Name: ...\n"
+        "- Prompt: [detailed style prompt in English describing genre, BPM, key, instrumentation, vocal style, mood, production techniques]\n"
+        "- 组合解释: [Chinese explanation of how this style fits the lyrics]\n"
+        "- 结构建议: [Chinese suggestion for song structure]\n"
+        "- 参考艺术家: [reference artists]\n\n"
+        "### 方案2\n"
+        "...\n\n"
+        "Provide 3 schemes total. The Prompt field is required and should be detailed."
     )
 
     user_message = f"Lyrics:\n{lyrics_content}\n"
@@ -1702,7 +1764,10 @@ async def _step_generate_music_style(
         llm_provider = "openai"
     provider = LLMFactory.create(llm_provider, llm_key, model, base_url=base_url)
     content = await provider.chat(messages)
-    return {"music_style_content": content}
+
+    # Parse LLM output into structured schemes
+    schemes = _parse_music_style_schemes(content)
+    return {"music_style_content": content, "music_style_schemes": schemes}
 
 
 async def _step_plan_lyrics_structure(

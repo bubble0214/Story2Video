@@ -1666,36 +1666,34 @@ def _parse_music_style_schemes(content: str) -> list[dict]:
     blocks = re.split(r"###\s*(?:方案|Scheme).*", content)
     for block in blocks[1:]:
         lines = block.strip().split("\n")
-        # Extract name from first non-empty content line (skip separators)
         name = ""
 
-        # Look for style name on the line immediately after "风格名称" label
-        # Format: **1. 风格名称与 genre**  \n 「雨夜信笺」- 独立民谣 / 钢琴民谣
-        for i, line in enumerate(lines):
+        # Try to find name from "Style Name:" or "风格名称" pattern
+        for line in lines:
             stripped = line.strip().strip("*#- ")
-            if "风格名称" in stripped or "genre" in stripped.lower():
+            # Match "Style Name: xxx" or "**1. 风格名称...**"
+            if re.match(r"^(Style Name|风格名称|风格)", stripped, re.IGNORECASE):
                 # Check same line for colon with name
                 parts = re.split(r"[：:]\s*", stripped, maxsplit=1)
                 if len(parts) > 1 and parts[1].strip():
                     name = parts[1].strip()
-                else:
-                    # Name is on the next line — look for 「...」 pattern or first meaningful line
-                    for j in range(i + 1, min(i + 3, len(lines))):
-                        next_line = lines[j].strip().strip("*#- ")
-                        if not next_line or next_line.startswith("---"):
-                            continue
-                        # Match 「name」 - genre or similar
-                        name = next_line
-                    break  # Don't fall through to generic line check
+                break
+            # After "### 方案N" heading, the first line is often just the title
+            # e.g. "Style Name: 不插电的独立民谣 / Indie Folk"
+            elif stripped.startswith("Style Name"):
+                parts = re.split(r"[：:]\s*", stripped, maxsplit=1)
+                if len(parts) > 1 and parts[1].strip():
+                    name = parts[1].strip()
+                break
 
+        # Fallback: first non-empty, non-metadata line
         if not name:
-            # Fallback: use heading context (from the ### split itself) or block title
             for line in lines:
                 line = line.strip().strip("*#- ")
                 if not line or line.startswith("---"):
                     continue
                 line = re.sub(r"^\*{0,2}\d+\.?\*{0,2}\s*", "", line)
-                if "BPM" not in line and "Key" not in line and "方案" not in line and "综合" not in line:
+                if "BPM" not in line and "Key" not in line and "方案" not in line and "综合" not in line and "Style Name" not in line:
                     name = line
                     break
         if not name:
@@ -1704,17 +1702,44 @@ def _parse_music_style_schemes(content: str) -> list[dict]:
         # Use the full block text as prompt/minimax style input
         prompt = block.strip()
 
-        # Extract reference artists if available
+        # Extract reference artists
         artists = ""
         for line in lines:
             stripped = line.strip()
-            # Match "**7. 参考艺术家/歌曲**" then take next line content
-            if "参考艺术家" in stripped or "参考歌曲" in stripped:
-                for j in range(lines.index(line) + 1, min(lines.index(line) + 3, len(lines))):
-                    artist_line = lines[j].strip().lstrip("-* ")
-                    if artist_line:
-                        artists = artist_line
+            # Match "- 参考艺术家: xxx" or "**7. 参考艺术家/歌曲**"
+            if re.match(r"^[-*]\s*(?:参考艺术家|参考歌曲|参考)", stripped):
+                # Name is on the same line after colon
+                _, _, val = stripped.partition("：")
+                if not val:
+                    _, _, val = stripped.partition(":")
+                val = val.strip().lstrip("-* ")
+                if val:
+                    artists = val
+                else:
+                    # Name on next line
+                    idx = lines.index(line)
+                    for j in range(idx + 1, min(idx + 3, len(lines))):
+                        al = lines[j].strip().lstrip("-* ")
+                        if al and not al.startswith("**"):
+                            artists = al
+                            break
+                break
+            elif "参考艺术家" in stripped or "参考歌曲" in stripped:
+                # Same-line extraction for "**7. 参考艺术家/歌曲**"
+                idx = lines.index(line)
+                for j in range(idx + 1, min(idx + 3, len(lines))):
+                    al = lines[j].strip().lstrip("-* ")
+                    if al and not al.startswith("**"):
+                        artists = al
                         break
+                if not artists:
+                    # Try same line after "："
+                    _, _, val = stripped.partition("：")
+                    if not val:
+                        _, _, val = stripped.partition(":")
+                    if val.strip():
+                        artists = val.strip().lstrip("-* ")
+                break
 
         schemes.append({
             "name": name,
@@ -1742,17 +1767,18 @@ async def _step_generate_music_style(
 
     system_prompt = (
         "You are a professional music producer and composer. Based on the given lyrics and core analysis, "
-        "generate 2-3 distinct music style schemes.\n\n"
-        "IMPORTANT: Format each scheme using the following markdown template:\n"
+        "generate 3 distinct music style schemes.\n\n"
+        "IMPORTANT: Use EXACTLY this format for each scheme (no markdown bold, no sub-headings):\n"
         "### 方案1\n"
-        "Style Name: ...\n"
-        "- Prompt: [detailed style prompt in English describing genre, BPM, key, instrumentation, vocal style, mood, production techniques]\n"
-        "- 组合解释: [Chinese explanation of how this style fits the lyrics]\n"
-        "- 结构建议: [Chinese suggestion for song structure]\n"
-        "- 参考艺术家: [reference artists]\n\n"
+        "Style Name: <genre name in Chinese / English>\n"
+        "- Prompt: <detailed style prompt in English, 2-3 sentences>\n"
+        "- 组合解释: <Chinese explanation of how this style fits the lyrics>\n"
+        "- 结构建议: <Chinese suggestion for song structure>\n"
+        "- 参考艺术家: <reference artists, comma separated>\n\n"
         "### 方案2\n"
         "...\n\n"
-        "Provide 3 schemes total. The Prompt field is required and should be detailed."
+        "### 方案3\n"
+        "..."
     )
 
     user_message = f"Lyrics:\n{lyrics_content}\n"

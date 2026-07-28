@@ -16,6 +16,7 @@ from app.core.celery import celery_app
 from app.core.config import settings
 from app.providers.llm import LLMFactory
 from app.providers.music import MusicFactory
+from app.providers.video import VideoFactory
 from app.providers.prompt import ExtractLyricsCorePromptBuilder, LyricsPromptBuilder, NovelPromptBuilder, ScriptPromptBuilder
 from app.providers.prompt.novel import (
     ExtractLyricsCorePromptBuilder,
@@ -1952,20 +1953,155 @@ async def _step_generate_video(input_params: dict, context: dict) -> dict:
     }
 
 
-async def _step_generate_mv(input_params: dict, context: dict) -> dict:
-    """Generate a music video from song audio, lyrics, and optional image segments."""
+async def _step_generate_mv(
+    input_params: dict, context: dict, user_id: UUID | None = None,
+) -> dict:
+    """Generate MV by creating per-segment videos with frame continuity, then composing the final MV."""
+    if user_id is None:
+        raise ValueError("User ID required to resolve API keys")
+
     song_audio_url = input_params.get("song_audio_url") or context.get("song_audio_url")
     lyrics_content = input_params.get("lyrics_content") or context.get("lyrics_content")
     segments = input_params.get("segments") or context.get("segments", [])
 
+    if not segments:
+        raise ValueError("No segments provided for MV generation")
+    if not song_audio_url:
+        raise ValueError("No song audio URL provided")
+
+    # Resolve Coze API key from user settings
+    coze_api_key = await get_user_api_key_from_db(user_id, "coze")
+    if not coze_api_key:
+        raise ValueError(
+            "No Coze API key found. Please go to Settings and add your Coze API key."
+        )
+    video_provider = VideoFactory.create("coze", coze_api_key)
+
+    video_urls: list[str] = []
+    last_frame_url: str | None = None
+
+    # Phase 1: Generate per-segment videos with frame continuity
+    for idx, seg in enumerate(segments):
+        logger.info("Generating MV segment %d/%d ...", idx + 1, len(segments))
+        prompt = seg.get("imagePrompt", "")
+        duration = seg.get("duration", 5)
+
+        kwargs: dict[str, Any] = {
+            "duration": duration,
+            "no_generate_audio": True,  # single song audio for the whole MV
+            "ratio": "16:9",
+        }
+        if last_frame_url:
+            kwargs["first_frame"] = last_frame_url
+
+        video_url = await video_provider.generate_video(prompt or "scene", **kwargs)
+        video_urls.append(video_url)
+        logger.info("Segment %d generated: %s", idx + 1, video_url)
+
+        # Download video and extract last frame as image for next segment
+        last_frame_url = await _extract_last_frame(video_url)
+
+    # Phase 2: Compose final MV from all segments + song audio
+    logger.info("Composing final MV from %d segments ...", len(video_urls))
+    mv_url = await _compose_mv(video_urls, song_audio_url)
+    logger.info("MV composed: %s", mv_url)
+
     return {
-        "mv_video_url": song_audio_url or "",
-        "mv_audio_url": song_audio_url or "",
-        "mv_placeholder": True,
-        "lyrics_content": lyrics_content,
+        "mv_video_url": mv_url,
+        "mv_audio_url": song_audio_url,
         "segments": segments,
-        "message": "MV generation not yet wired to a video composition service.",
+        "segment_video_urls": video_urls,
     }
+
+
+async def _extract_last_frame(video_url: str) -> str:
+    """Download a video, extract the last frame as an image with FFmpeg,
+    save to /data/uploads/mv/, return the publicly accessible URL."""
+    import httpx
+
+    mv_dir = Path(settings.upload_dir) / "mv"
+    mv_dir.mkdir(parents=True, exist_ok=True)
+
+    seg_path = mv_dir / f"seg_{uuid.uuid4().hex[:12]}.mp4"
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.get(video_url)
+        resp.raise_for_status()
+        seg_path.write_bytes(resp.content)
+
+    frame_path = mv_dir / f"frame_{uuid.uuid4().hex[:12]}.jpg"
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-sseof", "-1", "-i", str(seg_path),
+        "-frames:v", "1", str(frame_path),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+
+    seg_path.unlink(missing_ok=True)
+    return f"/uploads/mv/{frame_path.name}"
+
+
+async def _compose_mv(video_urls: list[str], audio_url: str) -> str:
+    """Download all video segments and the song audio, concat into final MV,
+    save to /data/uploads/mv/, return the publicly accessible URL."""
+    import httpx
+
+    mv_dir = Path(settings.upload_dir) / "mv"
+    mv_dir.mkdir(parents=True, exist_ok=True)
+
+    # Download all segments
+    local_paths: list[Path] = []
+    for i, url in enumerate(video_urls):
+        path = mv_dir / f"seg_{i:03d}_{uuid.uuid4().hex[:8]}.mp4"
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            path.write_bytes(resp.content)
+        local_paths.append(path)
+
+    # Download audio
+    audio_path = mv_dir / f"audio_{uuid.uuid4().hex[:12]}.mp3"
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.get(audio_url)
+        resp.raise_for_status()
+        audio_path.write_bytes(resp.content)
+
+    # Create concat file for FFmpeg
+    concat_path = mv_dir / "concat_list.txt"
+    concat_path.write_text(
+        "\n".join(f"file '{p.name}'" for p in local_paths) + "\n",
+        encoding="utf-8",
+    )
+
+    output_path = mv_dir / f"mv_{uuid.uuid4().hex[:12]}.mp4"
+    temp_noadio = mv_dir / "temp_noadio.mp4"
+
+    # Step 1: Concat videos (no audio)
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+        "-i", str(concat_path),
+        "-c", "copy", "-an", str(temp_noadio),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+
+    # Step 2: Add audio track
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-i", str(temp_noadio),
+        "-i", str(audio_path),
+        "-c:v", "copy", "-c:a", "aac", "-shortest",
+        str(output_path),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+
+    # Cleanup temp files
+    for p in local_paths:
+        p.unlink(missing_ok=True)
+    audio_path.unlink(missing_ok=True)
+    concat_path.unlink(missing_ok=True)
+    temp_noadio.unlink(missing_ok=True)
+
+    return f"/uploads/mv/{output_path.name}"
 
 
 async def _step_generate_mv_storyboard(

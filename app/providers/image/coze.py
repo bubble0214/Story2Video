@@ -108,7 +108,7 @@ class CozeImageProvider(BaseImageProvider):
             logger.info("Running Coze CLI: %s (prompt truncated: %.60s…)", " ".join(args), prompt)
             proc = await asyncio.create_subprocess_exec(
                 *args,
-                env=env,
+                env={**os.environ, **env},
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

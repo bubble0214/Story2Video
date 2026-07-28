@@ -111,7 +111,7 @@ class CozeVideoProvider(BaseVideoProvider):
             )
             proc = await asyncio.create_subprocess_exec(
                 *args,
-                env=env,
+                env={**os.environ, **env},
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

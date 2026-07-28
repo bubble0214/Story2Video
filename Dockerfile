@@ -10,9 +10,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Node.js 22 (required by @coze/cli >= 0.3.x) + ffmpeg
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg xz-utils \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates ffmpeg xz-utils \
     && curl -fsSL https://nodejs.org/dist/v22.9.0/node-v22.9.0-linux-x64.tar.xz \
         | tar -xJ -C /usr/local --strip=1 \
+    && rm -rf /usr/bin/node /usr/bin/npm \
     && npm install -g @coze/cli \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

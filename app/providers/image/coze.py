@@ -67,7 +67,7 @@ class CozeImageProvider(BaseImageProvider):
                 output cannot be parsed.
         """
         env = {
-            "COZE_API_KEY": self._api_key,
+            "COZE_API_TOKEN": self._api_key,
             "COZE_BASE_URL": self._base_url,
         }
         if self._billing_project_id:

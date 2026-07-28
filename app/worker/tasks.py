@@ -1990,16 +1990,21 @@ async def _step_generate_mv(
             "duration": duration,
             "no_generate_audio": True,  # single song audio for the whole MV
             "ratio": "16:9",
+            "return_last_frame": True,  # get last frame URL for next segment
         }
         if last_frame_url:
             kwargs["first_frame"] = last_frame_url
 
-        video_url = await video_provider.generate_video(prompt or "scene", **kwargs)
+        result = await video_provider.generate_video(prompt or "scene", **kwargs)
+        if isinstance(result, dict):
+            video_url = result["video_url"]
+            last_frame_url = result.get("last_frame_url")
+        else:
+            video_url = result
+            # Fallback: download and extract last frame with FFmpeg
+            last_frame_url = await _extract_last_frame(video_url)
         video_urls.append(video_url)
-        logger.info("Segment %d generated: %s", idx + 1, video_url)
-
-        # Download video and extract last frame as image for next segment
-        last_frame_url = await _extract_last_frame(video_url)
+        logger.info("Segment %d generated: %s (last_frame: %s)", idx + 1, video_url, last_frame_url or "N/A")
 
     # Phase 2: Compose final MV from all segments + song audio
     logger.info("Composing final MV from %d segments ...", len(video_urls))

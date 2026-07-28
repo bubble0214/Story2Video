@@ -41,7 +41,7 @@ class CozeVideoProvider(BaseVideoProvider):
                 the output cannot be parsed, or the generation did not succeed.
         """
         env = {
-            "COZE_API_KEY": self._api_key,
+            "COZE_API_TOKEN": self._api_key,
             "COZE_BASE_URL": self._base_url,
         }
         if self._billing_project_id:
@@ -64,6 +64,7 @@ class CozeVideoProvider(BaseVideoProvider):
             ("no_watermark", "--no-watermark"),
             ("camerafixed", "--camerafixed"),
             ("no_generate_audio", "--no-generate-audio"),
+            ("return_last_frame", "--return-last-frame"),
         ]
 
         extra_args: list[str] = []
@@ -171,5 +172,13 @@ class CozeVideoProvider(BaseVideoProvider):
                 f"Coze CLI returned empty video_url. "
                 f"Data: {json.dumps(data, ensure_ascii=False)}"
             )
+
+        # If return_last_frame was requested, include it in the result
+        last_frame_url = (resp.get("content") or {}).get("last_frame_url")
+        if last_frame_url:
+            return {
+                "video_url": video_url,
+                "last_frame_url": last_frame_url,
+            }
 
         return video_url

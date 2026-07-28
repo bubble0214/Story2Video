@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class BaseVideoProvider(ABC):
@@ -11,7 +12,7 @@ class BaseVideoProvider(ABC):
         self,
         prompt: str,
         **kwargs,
-    ) -> str:
+    ) -> str | dict[str, Any]:
         """Generate a video from a text prompt.
 
         Args:
@@ -19,6 +20,7 @@ class BaseVideoProvider(ABC):
             **kwargs: Additional provider-specific parameters.
 
         Returns:
-            URL string pointing to the generated video file.
+            URL string pointing to the generated video file,
+            or dict with "video_url" and optional "last_frame_url".
         """
         ...
